@@ -1,0 +1,96 @@
+:root {
+  --bm-green:  #22c55e;
+  --bm-yellow: #f59e0b;
+  --bm-red:    #ef4444;
+  --bm-dark:   #0d1117;
+  --bm-darker: #161b22;
+  --bm-surf:   #21262d;
+  --bm-border: #30363d;
+  --bm-text:   #c9d1d9;
+  --bm-muted:  #6e7681;
+}
+body { background:var(--bm-dark)!important; color:var(--bm-text); font-family:'Segoe UI',system-ui,sans-serif; }
+.bg-darker { background:var(--bm-darker)!important; }
+.bm-nav { background:var(--bm-darker)!important; }
+.bm-logo-icon { font-size:1.4rem; }
+
+/* GPS banner */
+.bm-gps-banner {
+  background:linear-gradient(90deg,rgba(34,197,94,.15),rgba(34,197,94,.05));
+  border-bottom:1px solid rgba(34,197,94,.3);
+  padding:.35rem 1rem;
+  font-size:.8rem;
+  color:var(--bm-green);
+  text-align:center;
+  position:sticky; top:56px; z-index:800;
+}
+.bm-pulse {
+  display:inline-block; width:8px; height:8px;
+  border-radius:50%; background:var(--bm-green);
+  animation:pulse 1.2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.4)} }
+
+/* Cards & forms */
+.card { border-color:var(--bm-border)!important; background:var(--bm-darker); }
+.form-control,.form-select {
+  background:var(--bm-surf)!important; color:var(--bm-text)!important;
+  border-color:var(--bm-border)!important;
+}
+.form-control:focus,.form-select:focus {
+  border-color:var(--bm-green)!important;
+  box-shadow:0 0 0 .15rem rgba(34,197,94,.2)!important;
+}
+.form-control::placeholder { color:var(--bm-muted)!important; }
+
+/* Tables */
+.table-dark { --bs-table-bg:var(--bm-darker); --bs-table-border-color:var(--bm-border); }
+.table-dark th { color:var(--bm-muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; }
+
+/* Route panel */
+.bm-route-panel { background:var(--bm-surf); border-radius:.5rem; padding:1rem; }
+.bm-stat-mini { background:var(--bm-dark); border-radius:.4rem; padding:.4rem; }
+
+/* Stats card */
+.bm-stat-card { background:var(--bm-surf); border-radius:.4rem; padding:.6rem .4rem; }
+
+/* Segment cards */
+.bm-segment-card { transition:.2s; border-left:3px solid var(--bm-border); }
+.bm-segment-card:hover { transform:translateX(3px); }
+.bm-segment-card.green  { border-left-color:var(--bm-green)!important; }
+.bm-segment-card.yellow { border-left-color:var(--bm-yellow)!important; }
+.bm-segment-card.red    { border-left-color:var(--bm-red)!important; }
+
+/* Condition buttons active state */
+.bm-cond-btn.active { opacity:1; box-shadow:0 0 0 2px currentColor; }
+.bm-cond-btn:not(.active) { opacity:.6; }
+.bm-filter:not(.active) { opacity:.35; }
+
+/* POI type button active */
+.bm-poi-type.active { background:rgba(245,158,11,.15)!important; border-color:#f59e0b!important; color:#f59e0b!important; }
+
+/* Mode button */
+.bm-mode-btn.active { background:rgba(34,197,94,.15)!important; border-color:var(--bm-green)!important; }
+
+/* Avatar */
+.bm-avatar-circle {
+  width:56px; height:56px; border-radius:50%;
+  background:rgba(34,197,94,.15); border:2px solid var(--bm-green);
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.4rem; font-weight:700; color:var(--bm-green);
+}
+
+/* Leaflet overrides */
+.leaflet-control-attribution { background:rgba(22,27,34,.85)!important; color:var(--bm-muted)!important; }
+.leaflet-popup-content-wrapper {
+  background:var(--bm-darker)!important; color:var(--bm-text)!important;
+  border:1px solid var(--bm-border); border-radius:8px!important;
+}
+.leaflet-popup-tip { background:var(--bm-darker)!important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-thumb { background:var(--bm-border); border-radius:2px; }
+
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+.card { animation:fadeUp .2s ease both; }

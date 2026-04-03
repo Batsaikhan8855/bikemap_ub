@@ -1,0 +1,1 @@
+# No DB models in routes app — routes live in browser session only

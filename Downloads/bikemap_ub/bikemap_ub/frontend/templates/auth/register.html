@@ -1,0 +1,59 @@
+{% extends 'base/base.html' %}
+{% block title %}Бүртгүүлэх — BikeMap UB{% endblock %}
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center py-5">
+  <div class="card bg-darker border-secondary" style="width:430px">
+    <div class="card-body p-4">
+      <div class="text-center mb-4">
+        <div class="fs-1">&#x1F6B2;</div>
+        <h5 class="fw-bold mt-2">Бүртгүүлэх</h5>
+        <p class="text-secondary small">Уланбаатарын дугуйчдын сүлжээнд нэгдэнэ үү</p>
+      </div>
+      <div id="regErr" class="alert alert-danger py-2 small d-none"></div>
+      <div class="mb-3">
+        <label class="form-label small text-secondary">Хэрэглэгчийн нэр</label>
+        <input type="text" id="regUser" class="form-control bg-dark text-light border-secondary" placeholder="bat_erdene"/>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-secondary">Имэйл</label>
+        <input type="email" id="regEmail" class="form-control bg-dark text-light border-secondary" placeholder="you@email.com"/>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small text-secondary">Нууц үг</label>
+        <input type="password" id="regPwd" class="form-control bg-dark text-light border-secondary" placeholder="Хамгийн багадаа 8 тэмдэгт"/>
+      </div>
+      <div class="mb-4">
+        <label class="form-label small text-secondary">Нууц үг давтах</label>
+        <input type="password" id="regPwd2" class="form-control bg-dark text-light border-secondary" placeholder="Дахин оруулна уу"/>
+      </div>
+      <button class="btn btn-success w-100 mb-3" onclick="doRegister()">
+        <i class="bi bi-person-plus me-1"></i>Бүртгүүлэх
+      </button>
+      <div class="text-center small text-secondary">
+        Аль хэдийн бүртгэлтэй юу? <a href="/login/" class="text-success">Нэвтрэх</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+async function doRegister() {
+  const errEl = document.getElementById('regErr');
+  errEl.classList.add('d-none');
+  try {
+    await Auth.register({
+      username: document.getElementById('regUser').value,
+      email:    document.getElementById('regEmail').value,
+      password: document.getElementById('regPwd').value,
+      password2:document.getElementById('regPwd2').value,
+    });
+    showToast('success','Бүртгэл амжилттай! Тавтай морил 🚲');
+    setTimeout(()=>window.location.href='/map/',900);
+  } catch(err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('d-none');
+  }
+}
+</script>
+{% endblock %}

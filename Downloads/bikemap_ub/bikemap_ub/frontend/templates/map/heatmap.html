@@ -1,0 +1,31 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block title %}Heatmap — BikeMap UB{% endblock %}
+{% block extra_css %}
+<style>#heatmap{height:calc(100vh - 120px);border-radius:.5rem}</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h5 class="mb-0 fw-bold">Аюулын <span class="text-success">Heatmap</span></h5>
+      <small class="text-secondary">Замын нөхцлийн нягтшил — олон хэрэглэгчийн нэгтгэсэн өгөгдөл</small>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <select class="form-select form-select-sm bg-dark text-light border-secondary" id="heatFilter" style="width:150px">
+        <option value="">Бүх нөхцөл</option>
+        <option value="green">🟢 Ногоон</option>
+        <option value="yellow">🟡 Шар</option>
+        <option value="red">🔴 Улаан</option>
+      </select>
+    </div>
+  </div>
+  <div class="d-flex gap-3 mb-3">
+    <span class="badge" style="background:rgba(34,197,94,.15);color:#22c55e">🟢 Дугуйн зам</span>
+    <span class="badge" style="background:rgba(245,158,11,.15);color:#f59e0b">🟡 Боломжтой</span>
+    <span class="badge" style="background:rgba(239,68,68,.15);color:#ef4444">🔴 Боломжгүй</span>
+  </div>
+  <div id="heatmap"></div>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/heatmap.js' %}"></script>{% endblock %}

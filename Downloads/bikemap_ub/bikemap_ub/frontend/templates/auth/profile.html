@@ -1,0 +1,48 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block title %}Профайл — BikeMap UB{% endblock %}
+{% block nav_profile %}active{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width:640px">
+  <div class="card bg-darker border-secondary mb-4" id="profileCard">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center gap-3 mb-4">
+        <div class="bm-avatar-circle" id="profAvatar">?</div>
+        <div>
+          <h5 class="fw-bold mb-0" id="profUsername">—</h5>
+          <span class="badge bg-secondary" id="profRole">cyclist</span>
+        </div>
+      </div>
+      <div class="row g-3 mb-4">
+        <div class="col-4 text-center">
+          <div class="bm-stat-card">
+            <div class="fw-bold text-success fs-4" id="profKm">0.0</div>
+            <div class="text-secondary small">км явсан</div>
+          </div>
+        </div>
+        <div class="col-4 text-center">
+          <div class="bm-stat-card">
+            <div class="fw-bold text-warning fs-4" id="profPois">0</div>
+            <div class="text-secondary small">POI нэмсэн</div>
+          </div>
+        </div>
+        <div class="col-4 text-center">
+          <div class="bm-stat-card">
+            <div class="fw-bold text-info fs-4" id="profSegs">0</div>
+            <div class="text-secondary small">Сегмент</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card bg-darker border-secondary">
+    <div class="card-header border-secondary small text-secondary">Миний POI-ууд</div>
+    <div class="card-body p-0">
+      <div id="myPOIList" class="py-3 text-center text-secondary small">Уншиж байна...</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{% static 'js/profile.js' %}"></script>
+{% endblock %}
