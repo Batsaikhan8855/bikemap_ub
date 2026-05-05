@@ -2,11 +2,13 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
+from django.db.models import Q
 from .models import POI, POIVote
 from .serializers import POISerializer
 from apps.accounts.permissions import (
     IsCyclistOrAbove, IsModeratorOrAdmin, IsOwnerOrMod
 )
+from apps.audit_log.models import AuditLog
 
 
 class POIViewSet(viewsets.ModelViewSet):
@@ -26,33 +28,34 @@ class POIViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = POI.objects.all()
-        # Public sees only approved; mods see all
-        if not (self.request.user.is_authenticated
-                and self.request.user.is_admin_or_mod):
-            qs = qs.filter(status="approved")
+        user = self.request.user
+        if not (user.is_authenticated and user.is_admin_or_mod):
+            if user.is_authenticated:
+                # Show approved POIs + user's own pending/rejected
+                qs = qs.filter(Q(status="approved") | Q(user=user))
+            else:
+                qs = qs.filter(status="approved")
         return qs
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return [permissions.AllowAny()]
-        if self.action == "create":
+        if self.action in ("create", "vote"):
             return [IsCyclistOrAbove()]
         if self.action in ("approve", "reject"):
             return [IsModeratorOrAdmin()]
         return [IsOwnerOrMod()]
 
     def perform_create(self, serializer):
-        poi  = serializer.save(user=self.request.user, status="pending")
+        serializer.save(user=self.request.user, status="pending")
         user = self.request.user
         user.total_pois += 1
         user.save(update_fields=["total_pois"])
 
     def perform_update(self, serializer):
         # Re-pend if an approved POI is edited by owner — US-061
-        instance = self.get_object()
-        new_status = instance.status
-        if instance.status == "approved":
-            new_status = "pending"
+        instance = serializer.instance
+        new_status = "pending" if instance.status == "approved" else instance.status
         serializer.save(status=new_status)
 
     @action(detail=True, methods=["post"])
@@ -104,6 +107,8 @@ class POIViewSet(viewsets.ModelViewSet):
         poi = self.get_object()
         poi.status = "approved"
         poi.save()
+        AuditLog.log(actor=request.user, action="poi_approve",
+                     target_type="POI", target_id=poi.id, request=request)
         return Response({"status": "approved", "id": poi.id})
 
     @action(detail=True, methods=["post"])
@@ -116,4 +121,14 @@ class POIViewSet(viewsets.ModelViewSet):
         poi.status = "rejected"
         poi.reject_reason = reason
         poi.save()
+        AuditLog.log(actor=request.user, action="poi_reject",
+                     target_type="POI", target_id=poi.id,
+                     detail=reason, request=request)
         return Response({"status": "rejected"})
+
+    def perform_destroy(self, instance):
+        """Delete POI + audit log"""
+        AuditLog.log(actor=self.request.user, action="poi_delete",
+                     target_type="POI", target_id=instance.id,
+                     request=self.request)
+        instance.delete()

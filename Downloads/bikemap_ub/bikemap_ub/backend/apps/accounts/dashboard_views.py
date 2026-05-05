@@ -7,7 +7,7 @@ from .serializers import UserProfileSerializer
 from .permissions import IsModeratorOrAdmin, IsAdminOnly
 from apps.pois.models import POI
 from apps.segments.models import Segment
-from apps.aggregation.models import CrowdAggregation
+from apps.audit_log.models import AuditLog
 import csv, datetime
 
 
@@ -74,6 +74,9 @@ class UserBanView(APIView):
             return Response({"error": "Not found"}, status=404)
         user.is_banned = not user.is_banned
         user.save()
+        action = "user_ban" if user.is_banned else "user_unban"
+        AuditLog.log(actor=request.user, action=action,
+                     target_type="User", target_id=user.id, request=request)
         return Response({"is_banned": user.is_banned, "username": user.username})
 
 
@@ -112,3 +115,26 @@ class ExportDataView(APIView):
                                   s.end_lat, s.end_lng, s.condition,
                                   s.infra_level, s.created_at])
         return response
+
+
+class AuditLogView(generics.ListAPIView):
+    """GET /api/dashboard/audit-log/  — Audit trail (admin only)"""
+    permission_classes = [IsAdminOnly]
+
+    def get(self, request):
+        from apps.audit_log.models import AuditLog as AL
+        qs = AL.objects.select_related("actor").order_by("-created_at")[:200]
+        data = [
+            {
+                "id":          e.id,
+                "actor":       e.actor.username if e.actor else "system",
+                "action":      e.action,
+                "target_type": e.target_type,
+                "target_id":   e.target_id,
+                "detail":      e.detail,
+                "ip_address":  e.ip_address,
+                "created_at":  e.created_at,
+            }
+            for e in qs
+        ]
+        return Response(data)

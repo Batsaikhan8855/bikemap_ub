@@ -100,18 +100,18 @@ const GPS = {
 
   async exportGPX() {
     if (!this.coords.length) { showToast('warning','Координат байхгүй.'); return; }
+    const body = JSON.stringify({ coordinates: this.coords, distance_km: this._calcDistance() });
+    const doFetch = (token) => fetch('/api/routes/gpx-export/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body,
+    });
     try {
-      const res = await fetch('/api/routes/gpx-export/', {
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'Authorization':`Bearer ${Auth.getAccess()}`
-        },
-        body: JSON.stringify({
-          coordinates: this.coords,
-          distance_km: this._calcDistance(),
-        }),
-      });
+      let res = await doFetch(Auth.getAccess());
+      if (res.status === 401) {
+        const newToken = await Auth.refresh();
+        res = await doFetch(newToken);
+      }
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);

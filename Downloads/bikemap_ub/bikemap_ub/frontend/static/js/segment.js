@@ -56,10 +56,10 @@ const SegmentDraw = {
     const infraLevel = parseInt(document.getElementById('infraLevel')?.value || 4);
     try {
       await API.createSegment({
-        start_lat:   this.startPt.lat,
-        start_lng:   this.startPt.lng,
-        end_lat:     this.endPt.lat,
-        end_lng:     this.endPt.lng,
+        start_lat:   parseFloat(this.startPt.lat.toFixed(6)),
+        start_lng:   parseFloat(this.startPt.lng.toFixed(6)),
+        end_lat:     parseFloat(this.endPt.lat.toFixed(6)),
+        end_lng:     parseFloat(this.endPt.lng.toFixed(6)),
         condition:   this.selectedCond,
         infra_level: infraLevel,
         is_created:  true,

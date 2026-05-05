@@ -79,25 +79,53 @@ const SmartRoute = {
     } catch(e) { showToast('danger','Маршрут тооцооллын алдаа: '+e.message); }
   },
 
+  // ── Visual style constants ─────────────────────────────────────────
+  // Route is rendered as two stacked polylines (casing + line) so it
+  // stays clearly readable even when overlapping colored segments.
+  ROUTE_STYLE: {
+    casing: { color: '#0b1220', weight: 11, opacity: 0.55, lineCap: 'round', lineJoin: 'round' },
+    line:   { color: '#3b82f6', weight: 6,  opacity: 1.00, lineCap: 'round', lineJoin: 'round' },
+  },
+
   _renderRoute(data) {
     this.routeLayer.clearLayers();
-    const COLORS = {green:'#22c55e',yellow:'#f59e0b',red:'#ef4444',unknown:'#6e7681'};
-    // Draw segments with colour
-    if (data.segments?.length) {
-      data.segments.forEach(seg => {
-        const color = COLORS[seg.colour]||COLORS.unknown;
-        L.polyline([[seg.from[1],seg.from[0]],[seg.to[1],seg.to[0]]],
-          {color,weight:5,opacity:.85}).addTo(this.routeLayer);
+
+    // Build a single polyline path. We prefer `coordinates` (a continuous
+    // line) and fall back to stitching `segments` end-to-end.
+    let latlngs = null;
+    if (data.coordinates?.length) {
+      latlngs = data.coordinates.map(c => [c[1], c[0]]);
+    } else if (data.segments?.length) {
+      latlngs = [];
+      data.segments.forEach((seg, i) => {
+        if (i === 0) latlngs.push([seg.from[1], seg.from[0]]);
+        latlngs.push([seg.to[1], seg.to[0]]);
       });
-    } else if (data.coordinates?.length) {
-      const lls = data.coordinates.map(c=>[c[1],c[0]]);
-      L.polyline(lls,{color:'#22c55e',weight:5}).addTo(this.routeLayer);
     }
-    // Hazard markers
-    (data.hazards||[]).forEach(h => {
-      L.circleMarker([h.lat,h.lng],{radius:8,color:'#ef4444',fillColor:'#ef4444',fillOpacity:.5})
-       .bindTooltip(`⚠ ${h.poi_type}`)
-       .addTo(this.routeLayer);
+
+    if (latlngs && latlngs.length > 1) {
+      const S = SmartRoute.ROUTE_STYLE;
+
+      // ── Layer 1: dark casing (drawn first → renders below) ──
+      L.polyline(latlngs, { pane: 'bm-route-casing', ...S.casing })
+        .addTo(this.routeLayer);
+
+      // ── Layer 2: bright top line (slightly thinner, full opacity) ──
+      L.polyline(latlngs, { pane: 'bm-route-line', ...S.line })
+        .addTo(this.routeLayer);
+
+      // Tell the map we're in "route mode" so the segments pane fades.
+      this.map.getContainer().classList.add('bm-route-active');
+    }
+
+    // Hazard markers — keep on the default markerPane (above everything).
+    (data.hazards || []).forEach(h => {
+      L.circleMarker([h.lat, h.lng], {
+        radius: 8, color: '#ef4444', fillColor: '#ef4444',
+        fillOpacity: 0.7, weight: 2,
+      })
+      .bindTooltip(`⚠ ${h.poi_type}`)
+      .addTo(this.routeLayer);
     });
   },
 
@@ -108,6 +136,11 @@ const SmartRoute = {
     document.getElementById('routeStart').value='';
     document.getElementById('routeEnd').value='';
     delete document.getElementById('routeStart').dataset.lat;
+    delete document.getElementById('routeStart').dataset.lng;
     delete document.getElementById('routeEnd').dataset.lat;
+    delete document.getElementById('routeEnd').dataset.lng;
+
+    // Restore segments to full opacity.
+    this.map?.getContainer().classList.remove('bm-route-active');
   },
 };

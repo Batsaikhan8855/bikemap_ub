@@ -35,3 +35,19 @@ class User(AbstractUser):
     @property
     def is_admin_or_mod(self):
         return self.role in ("admin", "moderator") or self.is_staff
+
+
+class PasswordResetToken(models.Model):
+    """30-минутын хүчинтэй нууц үг сэргээх tокен"""
+    user       = models.ForeignKey(User, on_delete=models.CASCADE,
+                                   related_name="reset_tokens")
+    token      = models.CharField(max_length=64, unique=True, db_index=True)
+    expires_at = models.DateTimeField()
+    used       = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"ResetToken({self.user.email}, used={self.used})"

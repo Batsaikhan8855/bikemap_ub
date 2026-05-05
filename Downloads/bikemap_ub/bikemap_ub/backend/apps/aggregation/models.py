@@ -36,7 +36,10 @@ class CrowdAggregation(models.Model):
 
     @staticmethod
     def make_hash(start_lat, start_lng, end_lat, end_lng):
-        key = f"{round(float(start_lat),3)},{round(float(start_lng),3)},"               f"{round(float(end_lat),3)},{round(float(end_lng),3)}"
+        key = (
+            f"{round(float(start_lat),3)},{round(float(start_lng),3)},"
+            f"{round(float(end_lat),3)},{round(float(end_lng),3)}"
+        )
         return hashlib.sha256(key.encode()).hexdigest()[:64]
 
     def compute_dominant(self):

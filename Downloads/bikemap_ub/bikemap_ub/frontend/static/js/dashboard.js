@@ -12,6 +12,8 @@ async function loadDashboard(){
     document.getElementById('dPending').textContent=s.pending_pois;
     document.getElementById('dUsers').textContent=s.total_users;
     document.getElementById('dCoverage').textContent=s.bike_lane_coverage+'%';
+    const bar=document.getElementById('dCoverageBar');
+    if(bar) setTimeout(()=>{bar.style.width=Math.min(parseFloat(s.bike_lane_coverage)||0,100)+'%';},50);
     document.getElementById('pendingBadge').textContent=s.pending_pois;
   }catch(e){showToast('danger','Stats алдаа: '+e.message);}
   try{

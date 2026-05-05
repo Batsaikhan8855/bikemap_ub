@@ -1,4 +1,6 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from .models import Segment
 from .serializers import SegmentSerializer
 from apps.accounts.permissions import IsCyclistOrAbove, IsOwnerOrMod
@@ -37,3 +39,41 @@ class SegmentViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         seg = serializer.save()
         update_aggregation(seg)
+
+    @action(detail=False, methods=["post"], permission_classes=[IsCyclistOrAbove],
+            url_path="bulk-import")
+    def bulk_import(self, request):
+        """
+        POST /api/segments/bulk-import/
+        Body: { "segments": [{start_lat, start_lng, end_lat, end_lng,
+                               condition, infra_level}, ...] }
+        Bulk-creates segments from a GPX import — max 500 per call.
+        """
+        segments_data = request.data.get("segments", [])
+        if not segments_data:
+            return Response({"error": "segments list is required"}, status=400)
+        if len(segments_data) > 500:
+            return Response({"error": "Maximum 500 segments per import"}, status=400)
+
+        created_ids = []
+        errors = []
+        for i, seg_data in enumerate(segments_data):
+            serializer = SegmentSerializer(data=seg_data,
+                                           context={"request": request})
+            if not serializer.is_valid():
+                errors.append({"index": i, "errors": serializer.errors})
+                continue
+            seg = Segment.objects.create(**serializer.validated_data,
+                                         user=request.user)
+            update_aggregation(seg)
+            created_ids.append(seg.id)
+
+        if created_ids:
+            user = request.user
+            user.total_segments += len(created_ids)
+            user.save(update_fields=["total_segments"])
+
+        return Response(
+            {"created": len(created_ids), "errors": errors},
+            status=status.HTTP_201_CREATED,
+        )

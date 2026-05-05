@@ -2,47 +2,191 @@
 {% load static %}
 {% block title %}Профайл — BikeMap UB{% endblock %}
 {% block nav_profile %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  .bm-profile-header {
+    background: linear-gradient(135deg,
+      rgba(34,197,94,.08) 0%,
+      rgba(34,197,94,.02) 50%,
+      transparent 100%);
+    border-bottom: 1px solid var(--bm-border);
+    padding: 1.75rem 1.75rem 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .bm-profile-header::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(34,197,94,.07), transparent 70%);
+    pointer-events: none;
+  }
+  .bm-avatar-wrap {
+    position: relative;
+    display: inline-block;
+  }
+  .bm-avatar-glow {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(34,197,94,.25), transparent 70%);
+    animation: bm-avatar-pulse 3s ease-in-out infinite;
+  }
+  @keyframes bm-avatar-pulse {
+    0%, 100% { opacity: .55; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.08); }
+  }
+  .bm-role-badge {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .2rem .65rem;
+    border-radius: 20px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .bm-role-badge.cyclist   { background: rgba(34,197,94,.13);  color: var(--bm-green);  border: 1px solid rgba(34,197,94,.3); }
+  .bm-role-badge.moderator { background: rgba(59,130,246,.13); color: var(--bm-blue);   border: 1px solid rgba(59,130,246,.3); }
+  .bm-role-badge.admin     { background: rgba(239,68,68,.13);  color: #ef4444;           border: 1px solid rgba(239,68,68,.3); }
+  .bm-stat-profile {
+    background: var(--bm-dark);
+    border: 1px solid var(--bm-border);
+    border-radius: var(--bm-radius);
+    padding: .9rem .5rem .8rem;
+    text-align: center;
+    transition: all .2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .bm-stat-profile:hover {
+    border-color: var(--bm-border2);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,.3);
+  }
+  .bm-stat-profile .icon {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .9rem;
+    margin: 0 auto .5rem;
+  }
+  .bm-stat-profile .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .bm-stat-profile .label {
+    font-size: .62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--bm-muted);
+    margin-top: .25rem;
+  }
+  .bm-poi-row {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .6rem 1rem;
+    border-bottom: 1px solid var(--bm-border);
+    transition: background .12s;
+  }
+  .bm-poi-row:last-child { border-bottom: none; }
+  .bm-poi-row:hover { background: rgba(255,255,255,.025); }
+  .bm-poi-icon-cell {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .9rem;
+    flex-shrink: 0;
+    background: var(--bm-surf);
+    border: 1px solid var(--bm-border);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container py-5" style="max-width:640px">
-  <div class="card bg-darker border-secondary mb-4" id="profileCard">
-    <div class="card-body p-4">
-      <div class="d-flex align-items-center gap-3 mb-4">
-        <div class="bm-avatar-circle" id="profAvatar">?</div>
-        <div>
-          <h5 class="fw-bold mb-0" id="profUsername">—</h5>
-          <span class="badge bg-secondary" id="profRole">cyclist</span>
+<div class="container py-5" style="max-width:660px">
+
+  <!-- Profile card -->
+  <div class="card border-secondary mb-4" style="overflow:hidden">
+
+    <!-- Header strip -->
+    <div class="bm-profile-header">
+      <div class="d-flex align-items-center gap-4">
+        <div class="bm-avatar-wrap flex-shrink-0">
+          <div class="bm-avatar-glow"></div>
+          <div class="bm-avatar-circle" id="profAvatar" style="position:relative">?</div>
         </div>
-      </div>
-      <div class="row g-3 mb-4">
-        <div class="col-4 text-center">
-          <div class="bm-stat-card">
-            <div class="fw-bold text-success fs-4" id="profKm">0.0</div>
-            <div class="text-secondary small">км явсан</div>
-          </div>
-        </div>
-        <div class="col-4 text-center">
-          <div class="bm-stat-card">
-            <div class="fw-bold text-warning fs-4" id="profPois">0</div>
-            <div class="text-secondary small">POI нэмсэн</div>
-          </div>
-        </div>
-        <div class="col-4 text-center">
-          <div class="bm-stat-card">
-            <div class="fw-bold text-info fs-4" id="profSegs">0</div>
-            <div class="text-secondary small">Сегмент</div>
-          </div>
+        <div class="flex-grow-1 min-w-0">
+          <h5 class="fw-bold mb-1 text-truncate" id="profUsername" style="font-size:1.2rem">—</h5>
+          <span class="bm-role-badge cyclist" id="profRoleBadge">
+            <i class="bi bi-bicycle"></i>
+            <span id="profRole">cyclist</span>
+          </span>
         </div>
       </div>
     </div>
-  </div>
-  <div class="card bg-darker border-secondary">
-    <div class="card-header border-secondary small text-secondary">Миний POI-ууд</div>
-    <div class="card-body p-0">
-      <div id="myPOIList" class="py-3 text-center text-secondary small">Уншиж байна...</div>
+
+    <!-- Stats row -->
+    <div class="card-body px-4 pb-4 pt-3">
+      <p class="bm-sidebar-label mb-2">Статистик</p>
+      <div class="row g-2">
+
+        <div class="col-4">
+          <div class="bm-stat-profile">
+            <div class="icon" style="background:rgba(34,197,94,.12)">
+              <i class="bi bi-bicycle" style="color:var(--bm-green)"></i>
+            </div>
+            <div class="value text-success" id="profKm">0.0</div>
+            <div class="label">КМ явсан</div>
+          </div>
+        </div>
+
+        <div class="col-4">
+          <div class="bm-stat-profile">
+            <div class="icon" style="background:rgba(245,158,11,.12)">
+              <i class="bi bi-exclamation-triangle-fill" style="color:var(--bm-yellow)"></i>
+            </div>
+            <div class="value text-warning" id="profPois">0</div>
+            <div class="label">POI нэмсэн</div>
+          </div>
+        </div>
+
+        <div class="col-4">
+          <div class="bm-stat-profile">
+            <div class="icon" style="background:rgba(59,130,246,.12)">
+              <i class="bi bi-pen-fill" style="color:var(--bm-blue)"></i>
+            </div>
+            <div class="value text-info" id="profSegs">0</div>
+            <div class="label">Сегмент</div>
+          </div>
+        </div>
+
+      </div>
     </div>
   </div>
+
+  <!-- POI list card -->
+  <div class="card border-secondary">
+    <div class="card-header border-secondary d-flex align-items-center justify-content-between py-2 px-3">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-pin-map-fill text-warning" style="font-size:.85rem"></i>
+        <span class="fw-semibold small">Миний POI-ууд</span>
+      </div>
+      <span class="bm-seg-count" id="myPoiCount">0</span>
+    </div>
+    <div id="myPOIList" class="py-3 text-center text-secondary small">
+      <div class="d-flex justify-content-center">
+        <div class="spinner-border spinner-border-sm text-secondary opacity-50"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
+
 {% block extra_js %}
 <script src="{% static 'js/profile.js' %}"></script>
 {% endblock %}

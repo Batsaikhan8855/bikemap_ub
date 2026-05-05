@@ -41,8 +41,8 @@ const POIManager = {
 
   handleMapClick(latlng) {
     if (!this.pickingCoord) return false;
-    this.pendingLat = latlng.lat;
-    this.pendingLng = latlng.lng;
+    this.pendingLat = parseFloat(latlng.lat.toFixed(6));
+    this.pendingLng = parseFloat(latlng.lng.toFixed(6));
     this.pickingCoord = false;
     this.map.getContainer().style.cursor = '';
     const alert = document.getElementById('poiCoordAlert');
@@ -137,8 +137,7 @@ const POIManager = {
   },
 
   _popupHTML(poi) {
-    const color = this.POI_COLORS[poi.poi_type]||'#888';
-    const img   = poi.image ? `<img src="${poi.image}" class="img-fluid rounded mb-2" style="max-height:120px">` : '';
+    const img = poi.image ? `<img src="${poi.image}" class="img-fluid rounded mb-2" style="max-height:120px">` : '';
     return `<div style="min-width:190px">
       <strong>${this.POI_ICONS[poi.poi_type]||''} ${poi.poi_type.replace(/_/g,' ').toUpperCase()}</strong>
       ${img}

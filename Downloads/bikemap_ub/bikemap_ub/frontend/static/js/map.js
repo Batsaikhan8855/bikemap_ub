@@ -35,7 +35,14 @@ function renderSegments() {
     L.polyline([
       [parseFloat(seg.start_lat), parseFloat(seg.start_lng)],
       [parseFloat(seg.end_lat),   parseFloat(seg.end_lng)],
-    ], {color, weight:5, opacity:.8})
+    ], {
+      pane:      'bm-segments',  // ensures segments draw below the route
+      color,
+      weight:    4,              // thinner so the route reads on top
+      opacity:   0.65,           // semi-transparent — base map still shows through
+      lineCap:   'round',
+      lineJoin:  'round',
+    })
     .bindTooltip(`<strong>${seg.condition.toUpperCase()}</strong> · Зэрэглэл ${seg.infra_level}`)
     .addTo(segLayer);
   });
@@ -45,7 +52,8 @@ function renderSegmentList(q='') {
   const filters = activeCondFilters();
   const ql = q.toLowerCase();
   const items = allSegments.filter(s =>
-    filters.includes(s.condition)
+    filters.includes(s.condition) &&
+    (!ql || s.condition.includes(ql) || (s.user?.username || '').toLowerCase().includes(ql))
   );
   const el = document.getElementById('segmentList');
   if (!items.length) {
@@ -72,6 +80,8 @@ async function loadSegments() {
     allSegments = data.results || data;
     renderSegments();
     renderSegmentList();
+    const badge = document.getElementById('segCount');
+    if (badge) badge.textContent = allSegments.length;
   } catch(e) {
     const el = document.getElementById('segmentList');
     if (el) el.innerHTML = `<div class="alert alert-danger small">${e.message}</div>`;
@@ -83,8 +93,28 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!mapEl) return;
   
   map = L.map('map').setView([47.9167, 106.9167], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom:19, attribution:'© OpenStreetMap'
+
+  // ─── Custom panes for stacking order ───────────────────────────────
+  // Default Leaflet pane z-indices (for reference):
+  //   tilePane 200 · overlayPane 400 · markerPane 600 · tooltipPane 650
+  // We slot 3 custom panes between overlayPane and markerPane so:
+  //   • segments stay BELOW the active route
+  //   • route gets a dark "casing" beneath a bright top line (halo effect)
+  //   • markers (start/end pins, hazards) stay above everything by default
+  const _pane = (name, z, extraClass) => {
+    const p = map.createPane(name);
+    p.style.zIndex = String(z);
+    if (extraClass) p.classList.add(extraClass);
+    return p;
+  };
+  _pane('bm-segments',     410, 'bm-segments-pane');     // colored road segments
+  _pane('bm-route-casing', 460, 'bm-route-casing-pane'); // dark outline beneath the route
+  _pane('bm-route-line',   470, 'bm-route-line-pane');   // bright top route line
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
   }).addTo(map);
 
   segLayer      = L.layerGroup().addTo(map);

@@ -3,203 +3,311 @@
 {% block title %}Газрын зураг — BikeMap UB{% endblock %}
 {% block nav_map %}active{% endblock %}
 
-{% block extra_css %}
-<style>
-  #map { height: calc(100vh - 56px); }
-  .sidebar { height: calc(100vh - 56px); overflow-y:auto; background:#161b22; border-right:1px solid #30363d; }
-  .bm-tab-btn { font-size:.78rem; padding:.35rem .7rem; }
-  .bm-tab-btn.active { background:var(--bs-success); color:#000; border-color:var(--bs-success); }
-  .bm-segment-card { border-left:3px solid #4a5568; transition:.2s; }
-  .bm-segment-card.green  { border-color:#22c55e; }
-  .bm-segment-card.yellow { border-color:#f59e0b; }
-  .bm-segment-card.red    { border-color:#ef4444; }
-  .bm-segment-card:hover  { transform:translateX(3px); }
-  .leaflet-popup-content-wrapper { background:#161b22!important; border:1px solid #30363d; color:#c9d1d9!important; border-radius:8px!important; }
-  .leaflet-popup-tip { background:#161b22!important; }
-  #routeBar { position:absolute; top:12px; left:50%; transform:translateX(-50%); z-index:900; min-width:340px; }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="row g-0" style="height:calc(100vh - 56px)">
+<div class="bm-app">
 
-  <!-- Sidebar -->
-  <div class="col-12 col-lg-3 sidebar p-3">
+  <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+  <aside class="bm-sidebar">
 
-    <!-- Sidebar tabs: Map / Route / Segment -->
-    <div class="btn-group w-100 mb-3" role="group">
-      <button class="btn btn-outline-secondary bm-tab-btn active" id="tabMap"    onclick="switchTab('map')">
-        <i class="bi bi-map-fill"></i> Зураг
-      </button>
-      <button class="btn btn-outline-secondary bm-tab-btn" id="tabRoute"  onclick="switchTab('route')">
-        <i class="bi bi-geo-alt-fill"></i> Route
-      </button>
-      <button class="btn btn-outline-secondary bm-tab-btn" id="tabSegment" onclick="switchTab('segment')">
-        <i class="bi bi-scissors"></i> Segment
-      </button>
-    </div>
-
-    <!-- MAP TAB -->
-    <div id="tabContentMap">
-      <div class="d-flex gap-1 mb-2 flex-wrap">
-        <button class="btn btn-sm bm-filter active" data-c="green"  style="background:rgba(34,197,94,.15);color:#22c55e;border-color:#22c55e">🟢 Зам</button>
-        <button class="btn btn-sm bm-filter active" data-c="yellow" style="background:rgba(245,158,11,.15);color:#f59e0b;border-color:#f59e0b">🟡 Боломжтой</button>
-        <button class="btn btn-sm bm-filter active" data-c="red"    style="background:rgba(239,68,68,.15);color:#ef4444;border-color:#ef4444">🔴 Боломжгүй</button>
+    <!-- ── Header (filters + search) ────────────────────────── -->
+    <div class="bm-sidebar-head">
+      <div class="bm-filter-row">
+        <button class="btn btn-sm bm-filter active" data-c="green"
+          style="background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.5)">
+          🟢 Зам
+        </button>
+        <button class="btn btn-sm bm-filter active" data-c="yellow"
+          style="background:rgba(245,158,11,.12);color:#f59e0b;border-color:rgba(245,158,11,.5)">
+          🟡 Боломжтой
+        </button>
+        <button class="btn btn-sm bm-filter active" data-c="red"
+          style="background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.5)">
+          🔴 Боломжгүй
+        </button>
+        <span class="bm-seg-count ms-auto" id="segCount">0</span>
       </div>
-      <input type="text" id="segSearch" class="form-control form-control-sm bg-dark text-light border-secondary mb-2" placeholder="Хайх..."/>
-      <div id="segmentList"><div class="text-center text-secondary py-3 small">Уншиж байна...</div></div>
+      <div class="bm-search-wrap">
+        <i class="bi bi-search"></i>
+        <input type="text" id="segSearch"
+          class="form-control form-control-sm"
+          placeholder="Сегмент хайх..."/>
+      </div>
     </div>
 
-    <!-- ROUTE TAB -->
-    <div id="tabContentRoute" style="display:none">
-      <div class="bm-route-panel">
-        <div class="text-secondary small mb-3">GPS ашиглан явсан замаа бичих</div>
+    <!-- ── Body: list / segment-tag / gpx-import ────────────── -->
+    <div class="bm-sidebar-body">
+
+      <!-- Default: Segment list -->
+      <div id="tabContentMap">
+        <div id="segmentList">
+          <div class="bm-empty">
+            <div class="bm-skeleton bm-skeleton-line w-100"></div>
+            <div class="bm-skeleton bm-skeleton-line short"></div>
+            <div class="bm-skeleton bm-skeleton-line w-100"></div>
+            <div class="bm-skeleton bm-skeleton-line short"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Segment tagging form -->
+      <div id="tabContentSegment" style="display:none">
+        <div class="bm-pane-back">
+          <button class="btn btn-link btn-sm p-0 text-secondary" onclick="switchTab('map')">
+            <i class="bi bi-arrow-left me-1"></i>Жагсаалт руу буцах
+          </button>
+        </div>
+        <h6 class="bm-pane-title">
+          <i class="bi bi-pen-fill text-warning me-1"></i>Сегмент тэмдэглэх
+        </h6>
+        <p class="bm-pane-help">
+          <i class="bi bi-info-circle me-1"></i>Газрын зурагт <strong>эхлэл</strong> → <strong>төгсгөл</strong> цэг тавина уу.
+        </p>
+
+        <p class="bm-sidebar-label mb-1">Замын нөхцөл</p>
+        <div class="d-flex gap-2 mb-3">
+          <button class="btn btn-sm flex-fill bm-cond-btn" data-cond="green"
+            style="border-color:rgba(34,197,94,.5);color:#22c55e">🟢 Ногоон</button>
+          <button class="btn btn-sm flex-fill bm-cond-btn" data-cond="yellow"
+            style="border-color:rgba(245,158,11,.5);color:#f59e0b">🟡 Шар</button>
+          <button class="btn btn-sm flex-fill bm-cond-btn" data-cond="red"
+            style="border-color:rgba(239,68,68,.5);color:#ef4444">🔴 Улаан</button>
+        </div>
+
+        <div class="mb-3">
+          <label class="bm-sidebar-label mb-1 d-block">Дэд бүтцийн зэрэглэл</label>
+          <select id="infraLevel" class="form-select form-select-sm">
+            <option value="1">1 — Тусгаарлагдсан дугуйн зам</option>
+            <option value="2">2 — Холимог ашиглалтын зам</option>
+            <option value="3">3 — Хамгаалалттай эгнээ</option>
+            <option value="4" selected>4 — Тэмдэглэгээт эгнээ</option>
+            <option value="5">5 — Явган хүний зам</option>
+            <option value="6">6 — Дундаа ашиглах зам</option>
+          </select>
+        </div>
+
         <div class="d-flex gap-2 mb-3">
           <div class="bm-stat-mini flex-fill text-center">
-            <div class="fw-bold text-success" id="routeKm">0.00</div>
-            <div class="text-secondary" style="font-size:.7rem">КМ</div>
+            <div class="small text-success" id="seg_start_lbl" style="font-size:.72rem">—</div>
+            <div class="bm-sidebar-label mt-1">ЭХЛЭЛ</div>
           </div>
           <div class="bm-stat-mini flex-fill text-center">
-            <div class="fw-bold text-info" id="routeTime">00:00</div>
-            <div class="text-secondary" style="font-size:.7rem">ХУГАЦАА</div>
-          </div>
-          <div class="bm-stat-mini flex-fill text-center">
-            <div class="fw-bold text-warning" id="routePoints">0</div>
-            <div class="text-secondary" style="font-size:.7rem">ЦЭГ</div>
+            <div class="small text-danger" id="seg_end_lbl" style="font-size:.72rem">—</div>
+            <div class="bm-sidebar-label mt-1">ТӨГСГӨЛ</div>
           </div>
         </div>
-        <button class="btn btn-success w-100 mb-2" id="btnStartRoute" onclick="GPS.start()">
-          <i class="bi bi-record-circle me-1"></i>Start Route
+
+        <button class="btn btn-success w-100 mb-2" id="btnSaveSegment" onclick="SegmentDraw.save()" disabled>
+          <i class="bi bi-check-lg me-1"></i>Сегмент хадгалах
         </button>
-        <button class="btn btn-danger w-100 mb-2 d-none" id="btnStopRoute" onclick="GPS.stop()">
-          <i class="bi bi-stop-circle me-1"></i>Stop Route
+        <button class="btn btn-outline-secondary w-100" onclick="SegmentDraw.reset()">
+          <i class="bi bi-x-lg me-1"></i>Цэвэрлэх
         </button>
-        <button class="btn btn-outline-primary w-100 d-none" id="btnGPXExport" onclick="GPS.exportGPX()">
-          <i class="bi bi-download me-1"></i>GPX Export
+      </div>
+
+      <!-- GPX import form -->
+      <div id="tabContentRoute" style="display:none">
+        <div class="bm-pane-back">
+          <button class="btn btn-link btn-sm p-0 text-secondary" onclick="switchTab('map')">
+            <i class="bi bi-arrow-left me-1"></i>Жагсаалт руу буцах
+          </button>
+        </div>
+        <h6 class="bm-pane-title">
+          <i class="bi bi-upload text-info me-1"></i>GPX файл оруулах
+        </h6>
+        <p class="bm-pane-help">
+          Strava, Garmin, Wahoo-гаас экспортолсон <code>.gpx</code> файлаа оруулж замын нөхцлийг тэмдэглэнэ.
+        </p>
+
+        <div id="gpxImportPanel" class="d-none">
+          <p class="bm-sidebar-label mb-1">Замын нөхцөл</p>
+          <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-sm flex-fill bm-cond-btn active" id="gpxCondGreen"
+              onclick="GPXImport.setCond('green')"
+              style="border-color:rgba(34,197,94,.5);color:#22c55e">🟢 Ногоон</button>
+            <button class="btn btn-sm flex-fill bm-cond-btn" id="gpxCondYellow"
+              onclick="GPXImport.setCond('yellow')"
+              style="border-color:rgba(245,158,11,.5);color:#f59e0b">🟡 Шар</button>
+            <button class="btn btn-sm flex-fill bm-cond-btn" id="gpxCondRed"
+              onclick="GPXImport.setCond('red')"
+              style="border-color:rgba(239,68,68,.5);color:#ef4444">🔴 Улаан</button>
+          </div>
+
+          <div class="mb-3">
+            <label class="bm-sidebar-label mb-1 d-block">Дэд бүтцийн зэрэглэл</label>
+            <select id="gpxInfraLevel" class="form-select form-select-sm">
+              <option value="1">1 — Тусгаарлагдсан дугуйн зам</option>
+              <option value="2">2 — Холимог ашиглалтын зам</option>
+              <option value="3">3 — Хамгаалалттай эгнээ</option>
+              <option value="4" selected>4 — Тэмдэглэгээт эгнээ</option>
+              <option value="5">5 — Явган хүний зам</option>
+              <option value="6">6 — Дундаа ашиглах зам</option>
+            </select>
+          </div>
+
+          <div class="bm-stat-mini text-center mb-3 py-2" id="gpxPreviewInfo"></div>
+
+          <button class="btn btn-success w-100 mb-2" id="btnSaveGPX" onclick="GPXImport.save()">
+            <i class="bi bi-check-lg me-1"></i>Хадгалах
+          </button>
+          <button class="btn btn-outline-secondary w-100" onclick="GPXImport.clear()">
+            <i class="bi bi-x-lg me-1"></i>Болих
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /sidebar-body -->
+
+    <!-- ── Sticky footer: GPS + GPX upload (always visible) ─── -->
+    <div class="bm-sidebar-foot">
+      <p class="bm-sidebar-foot-title mb-1">
+        <i class="bi bi-record-circle text-success"></i> GPS бичлэг
+        <span class="badge bg-warning text-dark ms-auto" style="font-size:.5rem"
+              title="Browser-ийн geolocation API нь нарийвчлал багатай. Бодит дугуйн өгөгдөлд Strava/Garmin-аас GPX файл экспортлоорой.">
+          DEMO
+        </span>
+      </p>
+
+      <!-- Live stats (fade in when recording would be ideal — kept inline) -->
+      <div class="d-flex gap-2">
+        <div class="bm-stat-mini flex-fill text-center">
+          <div class="fw-bold text-success" id="routeKm" style="font-size:.95rem">0.00</div>
+          <div class="bm-sidebar-label">КМ</div>
+        </div>
+        <div class="bm-stat-mini flex-fill text-center">
+          <div class="fw-bold text-info" id="routeTime" style="font-size:.95rem">00:00</div>
+          <div class="bm-sidebar-label">ХУГАЦАА</div>
+        </div>
+        <div class="bm-stat-mini flex-fill text-center">
+          <div class="fw-bold text-warning" id="routePoints" style="font-size:.95rem">0</div>
+          <div class="bm-sidebar-label">ЦЭГ</div>
+        </div>
+      </div>
+
+      <button class="btn btn-success w-100" id="btnStartRoute" onclick="GPS.start()">
+        <i class="bi bi-record-circle me-1"></i>Бичлэг эхлүүлэх
+      </button>
+      <button class="btn btn-danger w-100 d-none" id="btnStopRoute" onclick="GPS.stop()">
+        <i class="bi bi-stop-circle me-1"></i>Зогсоох
+      </button>
+
+      <div class="bm-foot-actions">
+        <button class="btn btn-outline-secondary btn-sm" onclick="switchTab('segment')">
+          <i class="bi bi-pen-fill me-1"></i>Сегмент тэмдэглэх
+        </button>
+        <label for="gpxFile" id="gpxFileLabel" class="btn btn-outline-info btn-sm" style="cursor:pointer">
+          <i class="bi bi-upload me-1"></i>GPX файл сонгох
+        </label>
+        <input type="file" id="gpxFile" accept=".gpx" class="d-none"
+               onchange="switchTab('route'); GPXImport.load(this);">
+        <button class="btn btn-outline-primary btn-sm d-none" id="btnGPXExport" onclick="GPS.exportGPX()">
+          <i class="bi bi-download me-1"></i>GPX татах
         </button>
       </div>
     </div>
+  </aside>
 
-    <!-- SEGMENT TAB -->
-    <div id="tabContentSegment" style="display:none">
-      <div class="text-secondary small mb-3">
-        Замын хэсэгт нөхцөл тэмдэглэх<br/>
-        <span class="text-warning small">Газрын зурагт эхлэл → төгсгөл цэг тавина</span>
-      </div>
-      <div class="d-flex gap-2 mb-3">
-        <button class="btn btn-sm flex-fill bm-cond-btn" data-cond="green"  style="border-color:#22c55e;color:#22c55e">🟢 Ногоон</button>
-        <button class="btn btn-sm flex-fill bm-cond-btn" data-cond="yellow" style="border-color:#f59e0b;color:#f59e0b">🟡 Шар</button>
-        <button class="btn btn-sm flex-fill bm-cond-btn" data-cond="red"    style="border-color:#ef4444;color:#ef4444">🔴 Улаан</button>
-      </div>
-      <select id="infraLevel" class="form-select form-select-sm bg-dark text-light border-secondary mb-3">
-        <option value="1">1 — Тусгаарлагдсан дугуйн зам</option>
-        <option value="2">2 — Холимог ашиглалтын зам</option>
-        <option value="3">3 — Хамгаалалттай эгнээ</option>
-        <option value="4" selected>4 — Тэмдэглэгээт эгнээ</option>
-        <option value="5">5 — Явган хүний зам (sidewalk)</option>
-        <option value="6">6 — Дундаа ашиглах зам</option>
-      </select>
-      <div class="d-flex gap-2 mb-3">
-        <div class="bm-stat-mini flex-fill text-center">
-          <div class="small" id="seg_start_lbl">—</div>
-          <div class="text-secondary" style="font-size:.65rem">ЭХЛЭЛ</div>
-        </div>
-        <div class="bm-stat-mini flex-fill text-center">
-          <div class="small" id="seg_end_lbl">—</div>
-          <div class="text-secondary" style="font-size:.65rem">ТӨГСГӨЛ</div>
-        </div>
-      </div>
-      <button class="btn btn-success w-100" id="btnSaveSegment" onclick="SegmentDraw.save()" disabled>
-        <i class="bi bi-check-lg me-1"></i>Сегмент хадгалах
-      </button>
-      <button class="btn btn-outline-secondary w-100 mt-2" onclick="SegmentDraw.reset()">
-        <i class="bi bi-x-lg me-1"></i>Цэвэрлэх
-      </button>
-    </div>
-
-  </div>
-
-  <!-- MAP -->
-  <div class="col-12 col-lg-9 position-relative">
+  <!-- ═══════════════════ MAP AREA ═══════════════════ -->
+  <div class="bm-map-pane">
     <div id="map"></div>
 
-    <!-- Smart Route Bar -->
-    <div id="routeBar" class="card bg-darker border-secondary shadow d-none" style="max-width:440px">
+    <!-- Top-right labeled action buttons -->
+    <div class="bm-map-actions">
+      <button class="bm-map-action is-poi" onclick="openPOIModal()">
+        <i class="bi bi-geo-alt-fill"></i>
+        <span>POI нэмэх</span>
+      </button>
+      <button class="bm-map-action is-route"
+        onclick="document.getElementById('routeBar').classList.toggle('d-none')">
+        <i class="bi bi-signpost-2-fill"></i>
+        <span>Маршрут тооцоолох</span>
+      </button>
+    </div>
+
+    <!-- Smart Route bar -->
+    <div id="routeBar" class="bm-route-bar card border-secondary shadow d-none">
       <div class="card-body py-2 px-3">
-        <div class="d-flex gap-2 align-items-center">
-          <input id="routeStart" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Эхлэл (газрын зураг дар)"/>
-          <i class="bi bi-arrow-right text-secondary"></i>
-          <input id="routeEnd" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Төгсгөл"/>
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <div class="position-relative flex-fill">
+            <i class="bi bi-circle-fill text-success position-absolute"
+               style="left:.6rem;top:50%;transform:translateY(-50%);font-size:.45rem"></i>
+            <input id="routeStart" class="form-control form-control-sm ps-4" placeholder="Эхлэл — газрын зурагт дар"/>
+          </div>
+          <i class="bi bi-arrow-right text-secondary flex-shrink-0 d-none d-sm-inline"></i>
+          <div class="position-relative flex-fill">
+            <i class="bi bi-circle-fill text-danger position-absolute"
+               style="left:.6rem;top:50%;transform:translateY(-50%);font-size:.45rem"></i>
+            <input id="routeEnd" class="form-control form-control-sm ps-4" placeholder="Төгсгөл"/>
+          </div>
         </div>
-        <div class="d-flex gap-2 mt-2">
+        <div class="d-flex gap-2">
           <button class="btn btn-sm btn-outline-success flex-fill bm-mode-btn active" data-mode="safe">
             <i class="bi bi-shield-check me-1"></i>Аюулгүй
           </button>
           <button class="btn btn-sm btn-outline-warning flex-fill bm-mode-btn" data-mode="fast">
             <i class="bi bi-lightning me-1"></i>Хурдан
           </button>
-          <button class="btn btn-sm btn-success" onclick="SmartRoute.calculate()">Тооцоолох</button>
-          <button class="btn btn-sm btn-outline-secondary" onclick="SmartRoute.clear()">
+          <button class="btn btn-sm btn-success" onclick="SmartRoute.calculate()" title="Тооцоолох">
+            <i class="bi bi-signpost-2"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="SmartRoute.clear()" title="Цэвэрлэх">
             <i class="bi bi-x"></i>
           </button>
         </div>
       </div>
     </div>
-
-    <!-- FABs -->
-    <div class="position-absolute d-flex flex-column gap-2" style="bottom:2rem;right:1rem;z-index:900">
-      <button class="btn btn-warning shadow" onclick="openPOIModal()" title="POI нэмэх">
-        <i class="bi bi-exclamation-triangle-fill"></i>
-      </button>
-      <button class="btn btn-success shadow" onclick="document.getElementById('routeBar').classList.toggle('d-none')" title="Маршрут">
-        <i class="bi bi-signpost-2-fill"></i>
-      </button>
-    </div>
   </div>
 </div>
 
-<!-- Add POI Modal -->
+<!-- ── Add POI Modal ────────────────────────────────────────────── -->
 <div class="modal fade" id="poiModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bg-dark text-light border-secondary">
-      <div class="modal-header border-secondary">
-        <h6 class="modal-title"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>POI нэмэх</h6>
+    <div class="modal-content bg-darker text-light border-secondary">
+      <div class="modal-header border-secondary py-3">
+        <h6 class="modal-title fw-bold mb-0">
+          <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Аюулын цэг нэмэх
+        </h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="alert alert-secondary small py-2 mb-3" id="poiCoordAlert">
-          <i class="bi bi-info-circle me-1"></i>Газрын зурагт дарж байршил сонгоно уу.
+
+        <div class="d-flex align-items-center gap-2 p-2 mb-3 rounded"
+          id="poiCoordAlert"
+          style="background:var(--bm-surf);border:1px solid var(--bm-border);font-size:.82rem">
+          <i class="bi bi-geo-alt text-secondary"></i>
+          <span class="text-secondary">Газрын зурагт дарж байршил сонгоно уу.</span>
         </div>
+
         <div class="mb-3">
-          <label class="form-label small text-secondary">POI Төрөл *</label>
+          <label class="bm-sidebar-label mb-2 d-block">Төрөл сонгох *</label>
           <div class="row g-2">
             <div class="col-6"><button class="btn btn-outline-secondary w-100 bm-poi-type" data-type="danger">🚨 Аюулын бүс</button></div>
             <div class="col-6"><button class="btn btn-outline-secondary w-100 bm-poi-type" data-type="no_bike_lane">🚫 Дугуйн зам байхгүй</button></div>
             <div class="col-6"><button class="btn btn-outline-secondary w-100 bm-poi-type" data-type="road_damage">🛣 Замын эвдрэл</button></div>
-            <div class="col-6"><button class="btn btn-outline-secondary w-100 bm-poi-type" data-type="parking_problem">🅿️ Зогсолтын асуудал</button></div>
+            <div class="col-6"><button class="btn btn-outline-secondary w-100 bm-poi-type" data-type="parking_problem">🚗 Зогсолтын асуудал</button></div>
             <div class="col-6"><button class="btn btn-outline-secondary w-100 bm-poi-type" data-type="bike_repair">🔧 Засварын цэг</button></div>
-            <div class="col-6"><button class="btn btn-outline-secondary w-100 bm-poi-type" data-type="bike_parking">🅿️ Дугуй зогсоол</button></div>
+            <div class="col-6"><button class="btn btn-outline-secondary w-100 bm-poi-type" data-type="bike_parking">🅿 Дугуй зогсоол</button></div>
           </div>
         </div>
+
         <div class="mb-3">
-          <label class="form-label small text-secondary">Тайлбар</label>
-          <textarea id="poiDesc" class="form-control bg-dark text-light border-secondary" rows="2" placeholder="Нэмэлт мэдээлэл..."></textarea>
+          <label class="bm-sidebar-label mb-1 d-block">Тайлбар</label>
+          <textarea id="poiDesc" class="form-control" rows="2" placeholder="Нэмэлт мэдээлэл..."></textarea>
         </div>
-        <div class="mb-3">
-          <label class="form-label small text-secondary">Зураг (≤5MB)</label>
-          <input type="file" id="poiImage" class="form-control bg-dark text-light border-secondary" accept="image/jpeg,image/png"/>
+
+        <div>
+          <label class="bm-sidebar-label mb-1 d-block">Зураг (≤5MB)</label>
+          <input type="file" id="poiImage" class="form-control form-control-sm" accept="image/jpeg,image/png"/>
         </div>
       </div>
-      <div class="modal-footer border-secondary">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Болих</button>
-        <button class="btn btn-warning" onclick="POIManager.submit()">
+      <div class="modal-footer border-secondary py-2">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Болих</button>
+        <button class="btn btn-warning btn-sm" onclick="POIManager.submit()">
           <i class="bi bi-send me-1"></i>Илгээх
         </button>
       </div>
     </div>
   </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
@@ -207,5 +315,23 @@
 <script src="{% static 'js/segment.js' %}"></script>
 <script src="{% static 'js/poi.js' %}"></script>
 <script src="{% static 'js/smart_route.js' %}"></script>
+<script src="{% static 'js/gpx_import.js' %}"></script>
 <script src="{% static 'js/map.js' %}"></script>
+<script>
+// Nudge leaflet to recalc its container size after layout settles.
+// Leaflet listens internally to window 'resize', so dispatching one
+// is enough — no need to reference the (let-scoped) map variable.
+window.addEventListener('load', () => {
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 80);
+});
+
+// Tint the GPS footer while recording
+(function () {
+  if (!window.GPS) return;
+  const foot = () => document.querySelector('.bm-sidebar-foot');
+  const _start = GPS.start, _stop = GPS.stop;
+  if (_start) GPS.start = function () { _start.apply(this, arguments); foot()?.classList.add('is-recording'); };
+  if (_stop)  GPS.stop  = function () { _stop.apply(this, arguments);  foot()?.classList.remove('is-recording'); };
+})();
+</script>
 {% endblock %}

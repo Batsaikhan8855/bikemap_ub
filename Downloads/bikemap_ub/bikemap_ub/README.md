@@ -1,6 +1,7 @@
 # 🚲 BikeMap UB — v5.0
 **Ulaanbaatar Bicycle Safety Crowdsourcing Platform**
-
+cd ~/bikemap_ub/Downloads/bikemap_ub/bikemap_ub
+cd backend
 ---
 
 ## VS Code Terminal — Хурдан эхлэх
@@ -178,3 +179,14 @@ green=1,  yellow=2, red=15 →  dominant = RED
 | 🟢 Green | Дугуйн зам байгаа | 1–2 |
 | 🟡 Yellow | Боломжтой, тусгай зам байхгүй | 3–4 |
 | 🔴 Red | Дугуй явах боломжгүй | 5–6 |
+
+## run test
+cd ~/bikemap_ub/Downloads/bikemap_ub/bikemap_ub/backend
+source venv/bin/activate          # macOS/Linux
+
+Хэрэв зөвхөн tests.py дотрох тестийг ажиллуулмаар бол:
+bashpython manage.py test tests
+Нэг тодорхой апп-ийн (жишээ нь accounts) тестийг ажиллуулах:
+bashpython manage.py test apps.accounts
+Дэлгэрэнгүй гаралт хармаар бол -v 2 нэмнэ:
+bashpython manage.py test -v 2

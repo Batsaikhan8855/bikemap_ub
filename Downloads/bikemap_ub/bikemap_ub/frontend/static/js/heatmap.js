@@ -2,7 +2,10 @@ const HMAP_COLORS = {green:'#22c55e',yellow:'#f59e0b',red:'#ef4444'};
 let hmap, hmapData=[];
 document.addEventListener('DOMContentLoaded', async()=>{
   hmap = L.map('heatmap').setView([47.9167,106.9167],13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(hmap);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, subdomains: 'abcd',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+  }).addTo(hmap);
   hmapData = await API.getHeatmap().catch(()=>[]);
   renderHeat();
   document.getElementById('heatFilter')?.addEventListener('change', renderHeat);

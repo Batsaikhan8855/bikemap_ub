@@ -2,14 +2,56 @@
 {% load static %}
 {% block title %}Админ — BikeMap UB{% endblock %}
 {% block nav_dash %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  .bm-section-title {
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--bm-muted);
+    margin-bottom: .9rem;
+  }
+  .bm-table-header {
+    background: var(--bm-surf) !important;
+  }
+  .bm-action-btn {
+    width: 28px; height: 28px;
+    border-radius: 7px !important;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: .75rem;
+    padding: 0 !important;
+    border-width: 1px !important;
+    transition: all .15s ease;
+  }
+  .bm-action-btn:hover { transform: scale(1.1); }
+  .bm-coverage-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bm-surf2);
+    overflow: hidden;
+    margin-top: .35rem;
+  }
+  .bm-coverage-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--bm-green);
+    transition: width .6s ease;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-4 py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+
+  <!-- Page header -->
+  <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
     <div>
       <h5 class="fw-bold mb-0">Админ <span class="text-success">Dashboard</span></h5>
       <small class="text-secondary">BikeMap UB — хяналт ба удирдлага</small>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-sm btn-outline-secondary" onclick="loadDashboard()">
         <i class="bi bi-arrow-clockwise me-1"></i>Шинэчлэх
       </button>
@@ -22,62 +64,117 @@
     </div>
   </div>
 
-  <!-- Stats -->
+  <!-- ── Stat Cards ─────────────────────────────────────────────── -->
+  <p class="bm-section-title">Нийт статистик</p>
   <div class="row g-3 mb-4">
-    <div class="col-6 col-md-2"><div class="card bg-darker border-secondary text-center p-3">
-      <div class="fs-3 fw-bold text-success" id="dTotalSegs">—</div><div class="text-secondary small">Сегмент</div>
-    </div></div>
-    <div class="col-6 col-md-2"><div class="card bg-darker border-secondary text-center p-3">
-      <div class="fs-3 fw-bold text-info" id="dTotalPois">—</div><div class="text-secondary small">POI нийт</div>
-    </div></div>
-    <div class="col-6 col-md-2"><div class="card bg-darker border-secondary text-center p-3">
-      <div class="fs-3 fw-bold text-warning" id="dPending">—</div><div class="text-secondary small">Хүлээгдэж буй</div>
-    </div></div>
-    <div class="col-6 col-md-2"><div class="card bg-darker border-secondary text-center p-3">
-      <div class="fs-3 fw-bold text-primary" id="dUsers">—</div><div class="text-secondary small">Хэрэглэгч</div>
-    </div></div>
-    <div class="col-6 col-md-2"><div class="card bg-darker border-secondary text-center p-3">
-      <div class="fs-3 fw-bold text-success" id="dCoverage">—</div><div class="text-secondary small">Lane coverage %</div>
-    </div></div>
+
+    <div class="col-6 col-md col-lg">
+      <div class="bm-dash-card">
+        <div class="bm-dash-icon" style="background:rgba(34,197,94,.12)">
+          <i class="bi bi-signpost-2-fill" style="color:var(--bm-green)"></i>
+        </div>
+        <div class="bm-dash-value text-success" id="dTotalSegs">—</div>
+        <div class="bm-dash-label">Сегмент</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md col-lg">
+      <div class="bm-dash-card">
+        <div class="bm-dash-icon" style="background:rgba(59,130,246,.12)">
+          <i class="bi bi-pin-map-fill" style="color:var(--bm-blue)"></i>
+        </div>
+        <div class="bm-dash-value text-info" id="dTotalPois">—</div>
+        <div class="bm-dash-label">POI нийт</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md col-lg">
+      <div class="bm-dash-card">
+        <div class="bm-dash-icon" style="background:rgba(245,158,11,.12)">
+          <i class="bi bi-hourglass-split" style="color:var(--bm-yellow)"></i>
+        </div>
+        <div class="bm-dash-value text-warning" id="dPending">—</div>
+        <div class="bm-dash-label">Хүлээгдэж буй</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md col-lg">
+      <div class="bm-dash-card">
+        <div class="bm-dash-icon" style="background:rgba(139,92,246,.12)">
+          <i class="bi bi-people-fill" style="color:#a78bfa"></i>
+        </div>
+        <div class="bm-dash-value" style="color:#a78bfa" id="dUsers">—</div>
+        <div class="bm-dash-label">Хэрэглэгч</div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md col-lg">
+      <div class="bm-dash-card">
+        <div class="bm-dash-icon" style="background:rgba(34,197,94,.08)">
+          <i class="bi bi-bar-chart-fill" style="color:var(--bm-green)"></i>
+        </div>
+        <div class="bm-dash-value text-success" id="dCoverage">—</div>
+        <div class="bm-dash-label">Lane coverage %</div>
+        <div class="bm-coverage-bar">
+          <div class="bm-coverage-fill" id="dCoverageBar" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <!-- Pending POIs table -->
-  <div class="card bg-darker border-secondary mb-4">
-    <div class="card-header border-secondary d-flex justify-content-between align-items-center">
-      <span class="fw-semibold small">Батлагдаагүй POI-ууд</span>
+  <!-- ── Pending POIs ───────────────────────────────────────────── -->
+  <div class="card border-secondary mb-4">
+    <div class="card-header border-secondary bm-table-header d-flex justify-content-between align-items-center py-2 px-3">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-shield-exclamation text-warning" style="font-size:.85rem"></i>
+        <span class="fw-semibold small">Батлагдаагүй POI-ууд</span>
+      </div>
       <span class="badge bg-warning text-dark" id="pendingBadge">0</span>
     </div>
     <div class="table-responsive">
       <table class="table table-dark table-hover mb-0 small">
-        <thead><tr>
-          <th class="text-secondary">ID</th><th class="text-secondary">Төрөл</th>
-          <th class="text-secondary">Байршил</th><th class="text-secondary">Хэрэглэгч</th>
-          <th class="text-secondary">Огноо</th><th class="text-secondary">Үйлдэл</th>
-        </tr></thead>
-        <tbody id="pendingTbody"><tr><td colspan="6" class="text-center text-secondary py-4">
-          <div class="spinner-border spinner-border-sm me-2"></div>Уншиж байна...
-        </td></tr></tbody>
+        <thead>
+          <tr>
+            <th>ID</th><th>Төрөл</th><th>Байршил</th>
+            <th>Хэрэглэгч</th><th>Огноо</th><th>Үйлдэл</th>
+          </tr>
+        </thead>
+        <tbody id="pendingTbody">
+          <tr><td colspan="6" class="text-center text-secondary py-4">
+            <div class="spinner-border spinner-border-sm me-2 opacity-50"></div>Уншиж байна...
+          </td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 
-  <!-- Users table -->
-  <div class="card bg-darker border-secondary">
-    <div class="card-header border-secondary small fw-semibold">Хэрэглэгчид</div>
+  <!-- ── Users ──────────────────────────────────────────────────── -->
+  <div class="card border-secondary">
+    <div class="card-header border-secondary bm-table-header d-flex align-items-center gap-2 py-2 px-3">
+      <i class="bi bi-people-fill text-secondary" style="font-size:.85rem"></i>
+      <span class="fw-semibold small">Хэрэглэгчид</span>
+    </div>
     <div class="table-responsive">
       <table class="table table-dark table-hover mb-0 small">
-        <thead><tr>
-          <th class="text-secondary">ID</th><th class="text-secondary">Хэрэглэгч</th>
-          <th class="text-secondary">Роль</th><th class="text-secondary">KM</th>
-          <th class="text-secondary">POI</th><th class="text-secondary">Бүртгэгдсэн</th>
-          <th class="text-secondary">Үйлдэл</th>
-        </tr></thead>
-        <tbody id="userTbody"><tr><td colspan="7" class="text-center text-secondary py-3">
-          <div class="spinner-border spinner-border-sm me-2"></div>
-        </td></tr></tbody>
+        <thead>
+          <tr>
+            <th>ID</th><th>Хэрэглэгч</th><th>Роль</th>
+            <th>KM</th><th>POI</th><th>Бүртгэгдсэн</th><th>Үйлдэл</th>
+          </tr>
+        </thead>
+        <tbody id="userTbody">
+          <tr><td colspan="7" class="text-center text-secondary py-3">
+            <div class="spinner-border spinner-border-sm opacity-50"></div>
+          </td></tr>
+        </tbody>
       </table>
     </div>
   </div>
+
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/dashboard.js' %}"></script>{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% endblock %}
