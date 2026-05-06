@@ -25,6 +25,11 @@
           🔴 Боломжгүй
         </button>
         <span class="bm-seg-count ms-auto" id="segCount">0</span>
+        <button class="bm-legend-btn" type="button"
+                data-bs-toggle="modal" data-bs-target="#legendModal"
+                title="Зэрэглэлийн тайлбар" aria-label="Зэрэглэлийн тайлбар">
+          <i class="bi bi-info-circle"></i>
+        </button>
       </div>
       <div class="bm-search-wrap">
         <i class="bi bi-search"></i>
@@ -94,6 +99,15 @@
             <div class="small text-danger" id="seg_end_lbl" style="font-size:.72rem">—</div>
             <div class="bm-sidebar-label mt-1">ТӨГСГӨЛ</div>
           </div>
+        </div>
+
+        <!-- Snap-to-road toggle (default OFF — straight line). Idэвхжүүлбэл
+             OSRM /match-аар зам дагуу автоматаар тохируулна. -->
+        <div class="form-check form-switch mb-3" style="font-size:.82rem">
+          <input class="form-check-input" type="checkbox" role="switch" id="snapToRoadToggle">
+          <label class="form-check-label text-secondary" for="snapToRoadToggle">
+            <i class="bi bi-bezier2 me-1"></i>Зам дагуу тохируулах (OSRM)
+          </label>
         </div>
 
         <button class="btn btn-success w-100 mb-2" id="btnSaveSegment" onclick="SegmentDraw.save()" disabled>
@@ -252,6 +266,76 @@
           <button class="btn btn-sm btn-outline-secondary" onclick="SmartRoute.clear()" title="Цэвэрлэх">
             <i class="bi bi-x"></i>
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Infra-level Legend Modal ──────────────────────────────────── -->
+<div class="modal fade" id="legendModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-darker text-light border-secondary">
+      <div class="modal-header border-secondary py-3">
+        <h6 class="modal-title fw-bold mb-0">
+          <i class="bi bi-info-circle text-info me-2"></i>Дугуйн замын зэрэглэл
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="bm-caption mb-3">
+          Сегментийн өнгө = <strong>нөхцөл</strong> (🟢 Зам · 🟡 Боломжтой · 🔴 Боломжгүй).<br>
+          Зураасны төрөл = <strong>дэд бүтцийн зэрэглэл</strong> (1–6).
+        </p>
+        <div class="table-responsive">
+          <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width:60px">№</th>
+                <th style="width:120px">Жишээ</th>
+                <th>Төрөл</th>
+                <th class="d-none d-md-table-cell">Тайлбар</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1</strong></td>
+                <td><svg width="100" height="14"><line x1="2" y1="7" x2="98" y2="7" stroke="#22c55e" stroke-width="6" stroke-linecap="round"/></svg></td>
+                <td>Тусгаарлагдсан зам</td>
+                <td class="d-none d-md-table-cell">Авто болон явганаас бүрэн тусгаарлагдсан, зөвхөн дугуйнд.</td>
+              </tr>
+              <tr>
+                <td><strong>2</strong></td>
+                <td><svg width="100" height="14"><line x1="2" y1="7" x2="98" y2="7" stroke="#22c55e" stroke-width="5" stroke-linecap="round"/></svg></td>
+                <td>Холимог ашиглалт</td>
+                <td class="d-none d-md-table-cell">Дугуй+явган зорчигч хамт ашиглах өргөн зам.</td>
+              </tr>
+              <tr>
+                <td><strong>3</strong></td>
+                <td><svg width="100" height="14"><line x1="2" y1="7" x2="98" y2="7" stroke="#22c55e" stroke-width="5" stroke-linecap="round" stroke-dasharray="18 4"/></svg></td>
+                <td>Хамгаалалттай эгнээ</td>
+                <td class="d-none d-md-table-cell">Шон/хашлагаар тусгаарлагдсан авто замын хажуугийн эгнээ.</td>
+              </tr>
+              <tr>
+                <td><strong>4</strong></td>
+                <td><svg width="100" height="14"><line x1="2" y1="7" x2="98" y2="7" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" stroke-dasharray="10 6"/></svg></td>
+                <td>Тэмдэглэгээт эгнээ</td>
+                <td class="d-none d-md-table-cell">Зөвхөн будгаар ялгасан, физик хамгаалалтгүй эгнээ.</td>
+              </tr>
+              <tr>
+                <td><strong>5</strong></td>
+                <td><svg width="100" height="14"><line x1="2" y1="7" x2="98" y2="7" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 6"/></svg></td>
+                <td>Явган хүний зам</td>
+                <td class="d-none d-md-table-cell">Явган зорчигч давамгайлсан нарийн зам — удаан явах.</td>
+              </tr>
+              <tr>
+                <td><strong>6</strong></td>
+                <td><svg width="100" height="14"><line x1="2" y1="7" x2="98" y2="7" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 8"/></svg></td>
+                <td>Нийтийн зам</td>
+                <td class="d-none d-md-table-cell">Тусгай эгнээгүй, машинтай нэг зам — туршлагатай дугуйчдад.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

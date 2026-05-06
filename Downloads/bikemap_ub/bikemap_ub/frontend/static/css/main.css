@@ -284,12 +284,39 @@ textarea.form-control { resize: none; }
   box-shadow: 0 0 0 1px var(--bm-yellow);
 }
 
-/* ── Mode buttons ─────────────────────────────────────────────────────────── */
-.bm-mode-btn { border-radius: 8px !important; transition: all .15s; font-weight: 500; }
+/* ── Mode buttons (Аюулгүй / Хурдан) ──────────────────────────────────────── */
+.bm-mode-btn {
+  border-radius: 8px !important;
+  font-weight: 600;
+  transition: all .15s ease;
+  position: relative;
+  opacity: .55; /* inactive — clearly muted */
+}
+.bm-mode-btn:hover { opacity: .9; }
 .bm-mode-btn.active {
-  background: rgba(34,197,94,.14) !important;
+  opacity: 1;
+  font-weight: 700;
+  transform: translateY(-1px);
+}
+/* "Safe" mode active = green emphasis */
+.bm-mode-btn[data-mode="safe"].active {
+  background: rgba(34,197,94,.22) !important;
   border-color: var(--bm-green) !important;
-  box-shadow: 0 0 0 1px var(--bm-green);
+  color: #22c55e !important;
+  box-shadow: 0 0 0 2px var(--bm-green), 0 4px 12px rgba(34,197,94,.35);
+}
+/* "Fast" mode active = yellow/orange emphasis */
+.bm-mode-btn[data-mode="fast"].active {
+  background: rgba(245,158,11,.22) !important;
+  border-color: var(--bm-yellow) !important;
+  color: #f59e0b !important;
+  box-shadow: 0 0 0 2px var(--bm-yellow), 0 4px 12px rgba(245,158,11,.35);
+}
+/* Add a tiny ✓ glyph before the active mode label so the state is
+   obvious even to a colour-blind user. */
+.bm-mode-btn.active::before {
+  content: "✓ ";
+  font-weight: 800;
 }
 
 /* ── Tables ───────────────────────────────────────────────────────────────── */
@@ -580,6 +607,29 @@ textarea.form-control { resize: none; }
   gap: .45rem;
 }
 
+/* ─── Sidebar legend (info) button ─── */
+.bm-legend-btn {
+  width: 26px;
+  height: 26px;
+  margin-left: .25rem;
+  border-radius: 50%;
+  background: var(--bm-surf);
+  color: var(--bm-muted);
+  border: 1px solid var(--bm-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .15s ease;
+  font-size: .82rem;
+  padding: 0;
+}
+.bm-legend-btn:hover {
+  background: var(--bm-surf2);
+  color: var(--bm-text);
+  border-color: var(--bm-border2);
+}
+
 /* ─── Mobile fallback (< 992px) ─── */
 @media (max-width: 991.98px) {
   .bm-app {
@@ -662,4 +712,10 @@ textarea.form-control { resize: none; }
    the eye to the active path. Uses SVG drop-shadow for crisp rendering. */
 .bm-route-line-pane {
   filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.55));
+}
+
+/* When OSRM is unavailable we render a yellow dashed straight line as a
+   fallback. Switch the glow to yellow so the visual cue matches. */
+.leaflet-container.bm-route-fallback .bm-route-line-pane {
+  filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.55));
 }

@@ -1,0 +1,249 @@
+% Хавсралт A
+%\chapter{Хавсралтын нэр} % Main appendix title
+\label{AppendixA} % For referencing this appendix elsewhere, use \ref{AppendixA}
+\chapter*{Чухал кодын хэсгүүд}
+
+\section*{Хэрэглэгчийн бүртгэл үүсгэх кодын хэсэг}
+\paragraph{} Бүртгэл үүсгэх API endpoint /US-070/ нь Django REST Framework -ийн \texttt{generics.CreateAPIView} -ийг өргөтгөн хэрэгжүүлсэн. Хэрэглэгч имейл, нууц үгээ оруулсны дараа bcrypt -ээр hash хийн хадгалж, JWT \texttt{access} болон \texttt{refresh} токеныг буцаана.
+\begin{lstlisting}[language=Python]
+from rest_framework import generics, status, permissions
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from .models import User
+from .serializers import RegisterSerializer, UserProfileSerializer
+
+
+class RegisterView(generics.CreateAPIView):
+    """POST /api/auth/register/  -- US-070"""
+    queryset           = User.objects.all()
+    serializer_class   = RegisterSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        s = self.get_serializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        user    = s.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            "user":    UserProfileSerializer(user).data,
+            "refresh": str(refresh),
+            "access":  str(refresh.access_token),
+        }, status=status.HTTP_201_CREATED)
+\end{lstlisting}
+
+\section*{Имэйл, нууц үгээр нэвтрэх кодын хэсэг}
+\paragraph{} Нэвтрэх API endpoint нь \texttt{authenticate()} функцээр имэйл, нууц үгийг шалгаж, амжилттай тохиолдолд JWT токен буцаана. \texttt{is\_banned} статустай хэрэглэгчид 403 алдаа буцаана.
+\begin{lstlisting}[language=Python]
+from rest_framework.views import APIView
+from django.contrib.auth import authenticate
+
+class LoginView(APIView):
+    """POST /api/auth/login/  -- US-070"""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email    = request.data.get("email")
+        password = request.data.get("password")
+        user     = authenticate(request, username=email, password=password)
+        if not user:
+            return Response({"error": "Invalid credentials"},
+                            status=status.HTTP_401_UNAUTHORIZED)
+        if user.is_banned:
+            return Response({"error": "Account is banned"},
+                            status=status.HTTP_403_FORBIDDEN)
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            "user":    UserProfileSerializer(user).data,
+            "refresh": str(refresh),
+            "access":  str(refresh.access_token),
+        })
+\end{lstlisting}
+
+\section*{Crowd Aggregation алгоритмын кодын хэсэг}
+\paragraph{} Олон хэрэглэгчийн оруулсан сегментийн саналуудыг нэгтгэн \emph{давамгай} нөхцлийг тооцоолох алгоритм /US-030, US-031/. Тухайн сегментийн орчинд (radius $\approx 0.001$ градус) байрлах бүх саналыг тоолж green / yellow / red тус бүрийн саналаас хамгийн ихийг сонгоно.
+\begin{lstlisting}[language=Python]
+import hashlib
+from django.db import models
+
+
+class CrowdAggregation(models.Model):
+    """Aggregated crowd vote per map cell -- E4 US-030 US-031"""
+    DOMINANT_CHOICES = [
+        ("green",  "Green"),
+        ("yellow", "Yellow"),
+        ("red",    "Red"),
+        ("none",   "No data"),
+    ]
+    segment_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    green_votes  = models.PositiveIntegerField(default=0)
+    yellow_votes = models.PositiveIntegerField(default=0)
+    red_votes    = models.PositiveIntegerField(default=0)
+    dominant     = models.CharField(max_length=10,
+                                    choices=DOMINANT_CHOICES, default="none")
+
+    @staticmethod
+    def make_hash(start_lat, start_lng, end_lat, end_lng):
+        key = (f"{round(float(start_lat),3)},{round(float(start_lng),3)},"
+               f"{round(float(end_lat),3)},{round(float(end_lng),3)}")
+        return hashlib.sha256(key.encode()).hexdigest()[:64]
+
+    def compute_dominant(self):
+        """
+        US-031: most votes wins.
+        Example: green=10, yellow=3, red=6 -> green
+        """
+        votes = {
+            "green":  self.green_votes,
+            "yellow": self.yellow_votes,
+            "red":    self.red_votes,
+        }
+        total = sum(votes.values())
+        if total == 0:
+            self.dominant = "none"
+        else:
+            self.dominant = max(votes, key=votes.get)
+        return self.dominant
+\end{lstlisting}
+
+\section*{Сегментийн санал нэгтгэх trigger функцийн кодын хэсэг}
+\paragraph{} Сегмент шинээр хадгалагдах эсвэл шинэчлэгдэх бүрд автоматаар дуудагдах функц. Тухайн координатын ойролцоох (bounding box) бүх сегментийг тоолон \texttt{CrowdAggregation} хүснэгтийг шинэчилнэ.
+\begin{lstlisting}[language=Python]
+from .models import CrowdAggregation
+
+def update_aggregation(segment):
+    """
+    Called after a Segment is saved.
+    Re-counts all votes for the same spatial hash
+    and recalculates dominant. -- E4 US-030
+    """
+    from apps.segments.models import Segment as Seg
+
+    seg_hash = CrowdAggregation.make_hash(
+        segment.start_lat, segment.start_lng,
+        segment.end_lat,   segment.end_lng,
+    )
+
+    # Find all segments in the same spatial cell
+    nearby = Seg.objects.filter(
+        start_lat__range=(float(segment.start_lat) - 0.001,
+                          float(segment.start_lat) + 0.001),
+        start_lng__range=(float(segment.start_lng) - 0.001,
+                          float(segment.start_lng) + 0.001),
+        end_lat__range  =(float(segment.end_lat)   - 0.001,
+                          float(segment.end_lat)   + 0.001),
+        end_lng__range  =(float(segment.end_lng)   - 0.001,
+                          float(segment.end_lng)   + 0.001),
+    )
+
+    g = nearby.filter(condition="green").count()
+    y = nearby.filter(condition="yellow").count()
+    r = nearby.filter(condition="red").count()
+
+    agg, _ = CrowdAggregation.objects.get_or_create(
+        segment_hash=seg_hash,
+        defaults={
+            "start_lat": segment.start_lat,
+            "start_lng": segment.start_lng,
+            "end_lat":   segment.end_lat,
+            "end_lng":   segment.end_lng,
+        }
+    )
+    agg.green_votes  = g
+    agg.yellow_votes = y
+    agg.red_votes    = r
+    agg.compute_dominant()
+    agg.save()
+    return agg
+\end{lstlisting}
+
+\section*{POI байрлуулах болон санал өгөх кодын хэсэг}
+\paragraph{} Хэрэглэгч газрын зураг дээр POI үүсгэх (US-020), upvote / downvote санал өгөх (US-022) ба админ POI -г батлах эсвэл татгалзах (US-051) логикийг агуулсан \texttt{ViewSet}.
+\begin{lstlisting}[language=Python]
+from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db import transaction
+from .models import POI, POIVote
+from .serializers import POISerializer
+
+
+class POIViewSet(viewsets.ModelViewSet):
+    """
+    POST /api/pois/             -- create POI, status=pending  (US-020)
+    POST /api/pois/{id}/vote/   -- upvote / downvote           (US-022)
+    POST /api/pois/{id}/approve/-- moderator approval          (US-051)
+    POST /api/pois/{id}/reject/ -- moderator rejection         (US-051)
+    """
+    serializer_class = POISerializer
+    filterset_fields = ["poi_type", "status"]
+
+    def perform_create(self, serializer):
+        poi  = serializer.save(user=self.request.user, status="pending")
+        user = self.request.user
+        user.total_pois += 1
+        user.save(update_fields=["total_pois"])
+
+    @action(detail=True, methods=["post"])
+    def vote(self, request, pk=None):
+        """POST /api/pois/{id}/vote/  -- US-022 (one vote per user)"""
+        if not request.user.is_authenticated:
+            return Response({"error": "Authentication required"}, status=401)
+        poi       = self.get_object()
+        vote_type = request.data.get("vote_type")
+        if vote_type not in ("up", "down"):
+            return Response({"error": "vote_type must be up or down"}, status=400)
+
+        with transaction.atomic():
+            existing = POIVote.objects.filter(poi=poi, user=request.user).first()
+            if existing:
+                if existing.vote_type == vote_type:
+                    # Toggle off
+                    if vote_type == "up":
+                        poi.upvotes = max(0, poi.upvotes - 1)
+                    else:
+                        poi.downvotes = max(0, poi.downvotes - 1)
+                    existing.delete()
+                else:
+                    # Switch vote
+                    if vote_type == "up":
+                        poi.upvotes  += 1
+                        poi.downvotes = max(0, poi.downvotes - 1)
+                    else:
+                        poi.downvotes += 1
+                        poi.upvotes    = max(0, poi.upvotes - 1)
+                    existing.vote_type = vote_type
+                    existing.save()
+            else:
+                POIVote.objects.create(poi=poi, user=request.user,
+                                       vote_type=vote_type)
+                if vote_type == "up":
+                    poi.upvotes += 1
+                else:
+                    poi.downvotes += 1
+            poi.save()
+
+        return Response({"upvotes": poi.upvotes,
+                         "downvotes": poi.downvotes,
+                         "user_vote": vote_type})
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        """POST /api/pois/{id}/approve/  -- US-051"""
+        poi = self.get_object()
+        poi.status = "approved"
+        poi.save()
+        return Response({"status": "approved", "id": poi.id})
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        """POST /api/pois/{id}/reject/  -- US-051"""
+        poi    = self.get_object()
+        reason = request.data.get("reason", "")
+        if not reason:
+            return Response({"error": "Rejection reason is required"},
+                            status=400)
+        poi.status        = "rejected"
+        poi.reject_reason = reason
+        poi.save()
+        return Response({"status": "rejected"})
+\end{lstlisting}

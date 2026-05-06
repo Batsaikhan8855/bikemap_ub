@@ -9,7 +9,7 @@ class SegmentSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Segment
         fields = ("id", "start_lat", "start_lng", "end_lat", "end_lng",
-                  "condition", "infra_level", "is_created",
+                  "geometry", "condition", "infra_level", "is_created",
                   "user", "created_at", "updated_at")
         read_only_fields = ("id", "user", "created_at", "updated_at")
 

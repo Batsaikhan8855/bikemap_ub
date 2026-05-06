@@ -80,18 +80,27 @@ const SmartRoute = {
   },
 
   // ── Visual style constants ─────────────────────────────────────────
-  // Route is rendered as two stacked polylines (casing + line) so it
-  // stays clearly readable even when overlapping colored segments.
+  // Two stacked polylines (casing + line) keep the route readable
+  // even when it overlaps the colored segments below it.
   ROUTE_STYLE: {
-    casing: { color: '#0b1220', weight: 11, opacity: 0.55, lineCap: 'round', lineJoin: 'round' },
-    line:   { color: '#3b82f6', weight: 6,  opacity: 1.00, lineCap: 'round', lineJoin: 'round' },
+    osrm: {
+      casing: { color: '#0b1220', weight: 9, opacity: 0.55, lineCap: 'round', lineJoin: 'round' },
+      line:   { color: '#3b82f6', weight: 5, opacity: 1.00, lineCap: 'round', lineJoin: 'round' },
+    },
+    // Fallback = OSRM unavailable → just a straight line. Make it
+    // obviously different so users know it's not a real road route.
+    fallback: {
+      casing: { color: '#3a2a00', weight: 8, opacity: 0.40, lineCap: 'round', lineJoin: 'round' },
+      line:   { color: '#f59e0b', weight: 4, opacity: 0.95, dashArray: '10 8',
+                lineCap: 'round', lineJoin: 'round' },
+    },
   },
 
   _renderRoute(data) {
     this.routeLayer.clearLayers();
 
-    // Build a single polyline path. We prefer `coordinates` (a continuous
-    // line) and fall back to stitching `segments` end-to-end.
+    // Build a single polyline path. Prefer `coordinates` (continuous line),
+    // fall back to stitching `segments` end-to-end.
     let latlngs = null;
     if (data.coordinates?.length) {
       latlngs = data.coordinates.map(c => [c[1], c[0]]);
@@ -104,21 +113,28 @@ const SmartRoute = {
     }
 
     if (latlngs && latlngs.length > 1) {
-      const S = SmartRoute.ROUTE_STYLE;
+      const isFallback = data.routing_status === 'fallback' || latlngs.length === 2;
+      const S = isFallback ? SmartRoute.ROUTE_STYLE.fallback : SmartRoute.ROUTE_STYLE.osrm;
 
-      // ── Layer 1: dark casing (drawn first → renders below) ──
+      // Layer 1: dark casing (renders below)
       L.polyline(latlngs, { pane: 'bm-route-casing', ...S.casing })
         .addTo(this.routeLayer);
 
-      // ── Layer 2: bright top line (slightly thinner, full opacity) ──
+      // Layer 2: bright top line
       L.polyline(latlngs, { pane: 'bm-route-line', ...S.line })
         .addTo(this.routeLayer);
 
       // Tell the map we're in "route mode" so the segments pane fades.
       this.map.getContainer().classList.add('bm-route-active');
+      this.map.getContainer().classList.toggle('bm-route-fallback', isFallback);
+
+      if (isFallback) {
+        showToast('warning',
+          'OSRM сервер хариу өгсөнгүй — энэ зөвхөн шулуун чиглэл. Замын алхам гэж бүү тоо.');
+      }
     }
 
-    // Hazard markers — keep on the default markerPane (above everything).
+    // Hazard markers — default markerPane is already above all our custom panes.
     (data.hazards || []).forEach(h => {
       L.circleMarker([h.lat, h.lng], {
         radius: 8, color: '#ef4444', fillColor: '#ef4444',
@@ -142,5 +158,6 @@ const SmartRoute = {
 
     // Restore segments to full opacity.
     this.map?.getContainer().classList.remove('bm-route-active');
+    this.map?.getContainer().classList.remove('bm-route-fallback');
   },
 };

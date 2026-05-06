@@ -20,6 +20,11 @@ class SegmentViewSet(viewsets.ModelViewSet):
     search_fields      = []
     ordering_fields    = ["created_at"]
 
+    # Map-руу бүх segment нэг удаагийн request-ээр ачаална. Default
+    # PAGE_SIZE=30 нь зөвхөн 30 ширхгийг буцаадаг тул газрын зурагт
+    # хангалттай дата орохгүй. (3000 segment ≈ 600 KB JSON — OK.)
+    pagination_class = None
+
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
             return [permissions.AllowAny()]

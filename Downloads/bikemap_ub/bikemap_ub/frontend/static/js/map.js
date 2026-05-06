@@ -2,6 +2,33 @@
  * map.js — Main Leaflet map initialisation & coordination
  */
 const COND_COLORS = {green:'#22c55e', yellow:'#f59e0b', red:'#ef4444', none:'#4a5568'};
+
+// Per-infrastructure-level visual style. Color comes from `condition`,
+// shape (weight + dashArray) comes from `infra_level` so the user can
+// tell *what kind of road* it is at a glance:
+//   1 — Тусгаарлагдсан дугуйн зам   (solid, thickest — safest)
+//   2 — Холимог ашиглалтын зам     (solid, medium)
+//   3 — Хамгаалалттай дугуйн эгнээ (long-dash)
+//   4 — Тэмдэглэгээт дугуйн эгнээ  (medium dash — painted only)
+//   5 — Явган хүний зам            (short dash — sidewalk)
+//   6 — Нийтийн зам (машинтай)    (sparse dots — shared with cars)
+const INFRA_STYLE = {
+  1: { weight: 6, dashArray: null,    opacity: 0.85 },
+  2: { weight: 5, dashArray: null,    opacity: 0.75 },
+  3: { weight: 5, dashArray: '18 4',  opacity: 0.75 },
+  4: { weight: 4, dashArray: '10 6',  opacity: 0.70 },
+  5: { weight: 3, dashArray: '4 6',   opacity: 0.60 },
+  6: { weight: 3, dashArray: '2 8',   opacity: 0.55 },
+};
+const INFRA_LABEL = {
+  1: 'Тусгаарлагдсан зам',
+  2: 'Холимог ашиглалт',
+  3: 'Хамгаалалттай эгнээ',
+  4: 'Тэмдэглэгээт эгнээ',
+  5: 'Явган хүний зам',
+  6: 'Нийтийн зам',
+};
+
 let map, segLayer, gpxLayerGroup, allSegments=[], activeTab='map';
 
 // Define global functions OUTSIDE DOMContentLoaded so inline onclick handlers can find them
@@ -31,19 +58,30 @@ function renderSegments() {
   segLayer.clearLayers();
   const filters = activeCondFilters();
   allSegments.filter(s=>filters.includes(s.condition)).forEach(seg => {
-    const color = COND_COLORS[seg.condition]||'#4a5568';
-    L.polyline([
-      [parseFloat(seg.start_lat), parseFloat(seg.start_lng)],
-      [parseFloat(seg.end_lat),   parseFloat(seg.end_lng)],
-    ], {
-      pane:      'bm-segments',  // ensures segments draw below the route
+    const color = COND_COLORS[seg.condition] || '#4a5568';
+    const lvl   = parseInt(seg.infra_level) || 4;
+    const style = INFRA_STYLE[lvl] || INFRA_STYLE[4];
+    const opts  = {
+      pane:      'bm-segments',  // draws below the active route
       color,
-      weight:    4,              // thinner so the route reads on top
-      opacity:   0.65,           // semi-transparent — base map still shows through
+      weight:    style.weight,
+      opacity:   style.opacity,
       lineCap:   'round',
       lineJoin:  'round',
-    })
-    .bindTooltip(`<strong>${seg.condition.toUpperCase()}</strong> · Зэрэглэл ${seg.infra_level}`)
+    };
+    if (style.dashArray) opts.dashArray = style.dashArray;
+
+    // Use stored road-snapped geometry when available, fall back to straight line
+    const latlngs = (seg.geometry && seg.geometry.length >= 2)
+      ? seg.geometry.map(p => [p.lat, p.lng])
+      : [[parseFloat(seg.start_lat), parseFloat(seg.start_lng)],
+         [parseFloat(seg.end_lat),   parseFloat(seg.end_lng)]];
+
+    L.polyline(latlngs, opts)
+    .bindTooltip(
+      `<strong>${seg.condition.toUpperCase()}</strong>` +
+      ` · Зэрэглэл ${lvl} — ${INFRA_LABEL[lvl] || ''}`
+    )
     .addTo(segLayer);
   });
 }

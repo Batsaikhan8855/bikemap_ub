@@ -56,10 +56,11 @@ const API = {
   getHeatmap:     () => API.get('/aggregation/heatmap/'),
 
   // Routes
-  gpxExport:      data => API.post('/routes/gpx-export/', data),
-  gpxImport:      form => API.postForm('/routes/gpx-import/', form),
-  smartRoute:     data => API.post('/routes/smart/', data),
-  recordDistance: km   => API.post('/routes/record-distance/', { distance_km: km }),
+  gpxExport:      data   => API.post('/routes/gpx-export/', data),
+  gpxImport:      form   => API.postForm('/routes/gpx-import/', form),
+  smartRoute:     data   => API.post('/routes/smart/', data),
+  recordDistance: km     => API.post('/routes/record-distance/', { distance_km: km }),
+  snapToRoad:     points => API.post('/routes/snap/', { points }),
 
   // Dashboard
   getStats:       () => API.get('/dashboard/stats/'),

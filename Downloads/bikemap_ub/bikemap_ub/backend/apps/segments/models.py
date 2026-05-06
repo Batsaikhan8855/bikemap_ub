@@ -24,6 +24,10 @@ class Segment(models.Model):
     infra_level = models.IntegerField(choices=INFRA_LEVEL_CHOICES, default=4,
                                       help_text="1=separated track … 6=shared road")
 
+    # Road-snapped geometry from OSRM /match — list of {lat, lng} dicts.
+    # Null for old segments imported before snap-to-road was added.
+    geometry    = models.JSONField(null=True, blank=True)
+
     # US-013: is_created=True means manually drawn (not from a GPS route)
     is_created  = models.BooleanField(default=False,
                                       help_text="TRUE = created via Create Segment, not from GPS route")

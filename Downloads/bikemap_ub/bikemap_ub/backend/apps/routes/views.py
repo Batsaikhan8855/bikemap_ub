@@ -184,13 +184,18 @@ class SmartRouteView(APIView):
                 [start["lng"], start["lat"]],
                 [end["lng"],   end["lat"]],
             ]
-            distance_m = 1000
-            duration_s = 300
+            # Use Haversine for a realistic fallback distance instead of fixed 1km
+            distance_m = _haversine_m(start["lat"], start["lng"],
+                                       end["lat"], end["lng"])
+            # Assume 15 km/h cycling speed for the fallback ETA
+            duration_s = int((distance_m / 1000) / 15 * 3600) if distance_m else 0
+            routing_status = "fallback"
         else:
-            route      = osrm_data["routes"][0]
+            route        = osrm_data["routes"][0]
             route_coords = route["geometry"]["coordinates"]
-            distance_m = route["distance"]
-            duration_s = route["duration"]
+            distance_m   = route["distance"]
+            duration_s   = route["duration"]
+            routing_status = "osrm"
 
         # 3. Annotate with aggregation colours
         segments_colour = []
@@ -226,13 +231,76 @@ class SmartRouteView(APIView):
                     })
 
         return Response({
-            "mode":       mode,
-            "distance_m": distance_m,
-            "duration_s": duration_s,
-            "coordinates": route_coords,
-            "segments":   segments_colour,
-            "hazards":    hazards,
+            "mode":           mode,
+            "routing_status": routing_status,  # "osrm" | "fallback"
+            "distance_m":     distance_m,
+            "duration_s":     duration_s,
+            "coordinates":    route_coords,
+            "segments":       segments_colour,
+            "hazards":        hazards,
         })
+
+
+class SnapToRoadView(APIView):
+    """
+    POST /api/routes/snap/
+    Body: { "points": [{"lat": f, "lng": f}, ...] }
+    Returns road-snapped geometry.
+    Falls back to the original points if OSRM is unavailable.
+
+    OSRM has two relevant endpoints, used here for different cases:
+
+      • /route (point-to-point pathfinding) — used when only 2 points are
+        given (typical "draw start → end segment" case). /route returns a
+        clean shortest-path along the road network.
+      • /match (GPS trace alignment)        — used when ≥3 points are given,
+        e.g. a recorded GPX trace that needs snapping to nearby roads.
+
+    Using /match for 2 distant points is the wrong tool — it tries to fit
+    them as if they were sequential GPS samples and produces zigzag paths
+    through small alleys.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        points = request.data.get("points", [])
+        if len(points) < 2:
+            return Response({"error": "At least 2 points required"}, status=400)
+
+        coords = ";".join(f"{p['lng']},{p['lat']}" for p in points)
+
+        if len(points) == 2:
+            # Point-to-point: ask OSRM for a proper route, not a match.
+            osrm_url = (
+                f"{settings.OSRM_BASE_URL}/route/v1/cycling/{coords}"
+                f"?overview=full&geometries=geojson"
+            )
+            extract = lambda d: (d.get("routes") or [None])[0]  # noqa: E731
+        else:
+            # GPS-trace style: align many points to the road network.
+            radiuses = ";".join("50" for _ in points)
+            osrm_url = (
+                f"{settings.OSRM_BASE_URL}/match/v1/cycling/{coords}"
+                f"?overview=full&geometries=geojson&radiuses={radiuses}"
+            )
+            extract = lambda d: (d.get("matchings") or [None])[0]  # noqa: E731
+
+        if REQUESTS_AVAILABLE:
+            try:
+                r = req_lib.get(osrm_url, timeout=5)
+                if r.status_code == 200:
+                    feature = extract(r.json())
+                    if feature and feature.get("geometry"):
+                        # OSRM returns [lng, lat] — convert to {lat, lng}
+                        geom = feature["geometry"]["coordinates"]
+                        geometry = [{"lat": c[1], "lng": c[0]} for c in geom]
+                        return Response({"geometry": geometry, "source": "osrm"})
+            except Exception:
+                pass
+
+        # Fallback: return the original points as a straight line.
+        geometry = [{"lat": p["lat"], "lng": p["lng"]} for p in points]
+        return Response({"geometry": geometry, "source": "fallback"})
 
 
 class UpdateProfileDistanceView(APIView):

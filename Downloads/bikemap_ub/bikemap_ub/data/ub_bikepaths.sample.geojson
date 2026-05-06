@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "name": "UB hand-traced bike paths (sample/template)",
+  "_comment": "Бодит дугуйн зам нэмэхийн тулд geojson.io дээр coordinates-ыг сольж энэ файлыг нэмэг. Координат [lng, lat] эрэмбэтэй. Property: condition (green|yellow|red), infra_level (1-6).",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [106.9000, 47.9180],
+          [106.9050, 47.9182],
+          [106.9100, 47.9183]
+        ]
+      },
+      "properties": {
+        "name": "ЖИШЭЭ — Энхтайваны өргөн чөлөө (хэрэглэгч засаж бөгл)",
+        "condition": "yellow",
+        "infra_level": 4,
+        "_note": "Энэ нь зөвхөн жишээ. Геометрийг бодитоор зурж сольно уу."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [106.9180, 47.9080],
+          [106.9230, 47.9085],
+          [106.9280, 47.9090]
+        ]
+      },
+      "properties": {
+        "name": "ЖИШЭЭ — Туул голын дугуйн зам (хэрэглэгч засаж бөгл)",
+        "condition": "green",
+        "infra_level": 1,
+        "_note": "Зөвхөн жишээ — бодит зам биш."
+      }
+    }
+  ]
+}

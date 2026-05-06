@@ -1,5 +1,6 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework.exceptions import AuthenticationFailed
 
 
 class CookieJWTAuthentication(JWTAuthentication):
@@ -15,6 +16,7 @@ class CookieJWTAuthentication(JWTAuthentication):
             try:
                 validated = self.get_validated_token(cookie_token)
                 return self.get_user(validated), validated
-            except (InvalidToken, TokenError):
-                pass  # Cookie expired or invalid — fall through to header
+            except (InvalidToken, TokenError, AuthenticationFailed):
+                # Cookie expired, invalid, or user no longer exists — fall through
+                pass
         return super().authenticate(request)
