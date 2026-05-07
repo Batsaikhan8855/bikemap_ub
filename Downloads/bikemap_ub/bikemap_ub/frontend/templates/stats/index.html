@@ -1,0 +1,223 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block title %}Статистик — BikeMap UB{% endblock %}
+{% block nav_route %}active{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <!-- ─── Header ─── -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+    <div>
+      <h2 class="fw-bold mb-1 text-light">
+        <i class="bi bi-bar-chart-fill text-success me-2"></i>Системийн статистик
+      </h2>
+      <p class="text-secondary mb-0" style="font-size:.85rem">
+        BikeMap UB-д хуримтлагдсан crowd-sourcing өгөгдлийн ерөнхий тойм.
+      </p>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" onclick="loadStats()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Шинэчлэх
+    </button>
+  </div>
+
+  <!-- ─── 4 main KPI cards ─── -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="bm-stat-card text-center h-100">
+        <div class="bm-stat-icon">🚴</div>
+        <div class="bm-stat-value text-success" id="kpiSegments">—</div>
+        <div class="bm-stat-label">Нийт сегмент</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="bm-stat-card text-center h-100">
+        <div class="bm-stat-icon">⚠️</div>
+        <div class="bm-stat-value text-warning" id="kpiPois">—</div>
+        <div class="bm-stat-label">Нийт POI</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="bm-stat-card text-center h-100">
+        <div class="bm-stat-icon">👥</div>
+        <div class="bm-stat-value text-info" id="kpiUsers">—</div>
+        <div class="bm-stat-label">Хэрэглэгч</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="bm-stat-card text-center h-100">
+        <div class="bm-stat-icon">📏</div>
+        <div class="bm-stat-value" id="kpiKm">—</div>
+        <div class="bm-stat-label">Нийт явсан км</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Segments breakdown ─── -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+      <div class="card bg-darker text-light border-secondary h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3">
+            <i class="bi bi-palette-fill me-2"></i>Сегмент нөхцлөөр
+          </h6>
+          <div id="segByCondition">
+            <div class="bm-skeleton bm-skeleton-line w-100"></div>
+            <div class="bm-skeleton bm-skeleton-line short"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card bg-darker text-light border-secondary h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3">
+            <i class="bi bi-bezier me-2"></i>Сегмент дэд бүтцийн зэрэглэлээр
+          </h6>
+          <div id="segByLevel">
+            <div class="bm-skeleton bm-skeleton-line w-100"></div>
+            <div class="bm-skeleton bm-skeleton-line short"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── POI breakdown ─── -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+      <div class="card bg-darker text-light border-secondary h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3">
+            <i class="bi bi-geo-alt-fill me-2"></i>POI төрлөөр
+          </h6>
+          <div id="poiByType">
+            <div class="bm-skeleton bm-skeleton-line w-100"></div>
+            <div class="bm-skeleton bm-skeleton-line short"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card bg-darker text-light border-secondary h-100">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3">
+            <i class="bi bi-shield-check me-2"></i>Дугуйн зам бүрхэлт
+          </h6>
+          <div class="text-center my-3">
+            <div class="display-4 fw-bold text-success" id="kpiCoverage">—</div>
+            <div class="text-secondary small">🟢 Ногоон сегментийн эзлэх хувь</div>
+          </div>
+          <div class="progress" style="height: 8px; background: var(--bm-surf)">
+            <div id="coverageBar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div>
+          </div>
+          <div class="d-flex justify-content-between small text-secondary mt-2">
+            <span id="kpiManual">— гар</span>
+            <span id="kpiImported">— OSM/import</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-secondary text-center small mt-4">
+    Эх үүсвэр: BikeMap UB DB · OpenStreetMap (OSM) · Бодит цагт шинэчлэгдэнэ
+  </p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const POI_LABELS = {
+  danger:          ['🚨', 'Аюулын бүс'],
+  no_bike_lane:    ['🚫', 'Дугуйн зам байхгүй'],
+  road_damage:     ['🛣',  'Замын эвдрэл'],
+  parking_problem: ['🚗', 'Зогсолтын асуудал'],
+  bike_repair:     ['🔧', 'Засварын цэг'],
+  bike_parking:    ['🅿',  'Дугуй зогсоол'],
+};
+const COND_LABELS = {
+  green:  ['🟢', 'Дугуйн зам байгаа',  '#22c55e'],
+  yellow: ['🟡', 'Боломжтой',           '#f59e0b'],
+  red:    ['🔴', 'Боломжгүй',           '#ef4444'],
+};
+const INFRA_LABELS = {
+  1: 'Тусгаарлагдсан зам',
+  2: 'Холимог ашиглалт',
+  3: 'Хамгаалалттай эгнээ',
+  4: 'Тэмдэглэгээт эгнээ',
+  5: 'Явган хүний зам',
+  6: 'Нийтийн зам',
+};
+
+function fmt(n) { return (n || 0).toLocaleString('mn-MN'); }
+
+function bar(label, value, total, color) {
+  const pct = total ? (value * 100 / total) : 0;
+  return `
+    <div class="mb-2">
+      <div class="d-flex justify-content-between small mb-1">
+        <span>${label}</span>
+        <span class="text-secondary">${fmt(value)} <span style="opacity:.6">(${pct.toFixed(1)}%)</span></span>
+      </div>
+      <div class="progress" style="height:6px; background: var(--bm-surf)">
+        <div class="progress-bar" role="progressbar"
+             style="width:${pct}%; background:${color}"></div>
+      </div>
+    </div>`;
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch('/api/aggregation/stats/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    // ── KPIs ──
+    document.getElementById('kpiSegments').textContent = fmt(data.segments.total);
+    document.getElementById('kpiPois').textContent     = fmt(data.pois.total);
+    document.getElementById('kpiUsers').textContent    = fmt(data.users.total);
+    document.getElementById('kpiKm').textContent       = (data.users.total_km || 0).toFixed(1);
+    document.getElementById('kpiCoverage').textContent = data.coverage.green_pct + '%';
+    document.getElementById('coverageBar').style.width = data.coverage.green_pct + '%';
+    document.getElementById('kpiManual').textContent   = `${fmt(data.segments.manual)} гар тэмдэглэсэн`;
+    document.getElementById('kpiImported').textContent = `${fmt(data.segments.imported)} OSM/import`;
+
+    // ── Segments by condition ──
+    const segCondEl = document.getElementById('segByCondition');
+    segCondEl.innerHTML = ['green','yellow','red'].map(c => {
+      const [emoji, label, color] = COND_LABELS[c];
+      return bar(`${emoji} ${label}`,
+                 data.segments.by_condition[c] || 0,
+                 data.segments.total, color);
+    }).join('');
+
+    // ── Segments by infra level ──
+    const segLvlEl = document.getElementById('segByLevel');
+    segLvlEl.innerHTML = [1,2,3,4,5,6].map(lvl =>
+      bar(`Level ${lvl} — ${INFRA_LABELS[lvl]}`,
+          data.segments.by_infra_level[lvl] || 0,
+          data.segments.total, '#3b82f6')
+    ).join('');
+
+    // ── POIs by type ──
+    const poiTypeEl = document.getElementById('poiByType');
+    if (data.pois.total === 0) {
+      poiTypeEl.innerHTML = '<p class="text-secondary small mb-0">POI оруулагдаагүй байна.</p>';
+    } else {
+      poiTypeEl.innerHTML = Object.entries(POI_LABELS).map(([t, [emoji, label]]) =>
+        bar(`${emoji} ${label}`,
+            data.pois.by_type[t] || 0,
+            data.pois.total, '#f59e0b')
+      ).join('');
+    }
+  } catch (e) {
+    document.querySelectorAll('#segByCondition,#segByLevel,#poiByType').forEach(el => {
+      el.innerHTML = `<div class="alert alert-danger small">Алдаа: ${e.message}</div>`;
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadStats);
+</script>
+{% endblock %}

@@ -238,8 +238,14 @@ class Command(BaseCommand):
         self.stdout.write(f"  Bike-related ways: {len(ways)}")
 
         # ── Build segment objects ─────────────────────────────────────
+        # Шинэ хувилбар: OSM way бүрд НЭГ Segment row үүсгэнэ. Way-ийн бүх
+        # цэгийг `geometry` JSON field дотор хадгалж frontend-д smooth
+        # полилайн (зам мэт хэлбэрээр) зурагдах боломжтой болгоно.
+        # Хуучин 11 жижиг 2-цэгт сегмент → 1 бүтэн зам. Үр дүнд visual
+        # тал нь огт өөр болж жинхэнэ дугуйн зам шиг харагдана.
         to_create = []
         skipped_short = 0
+        skipped_invalid = 0
         per_level = {i: 0 for i in range(1, 7)}
         per_cond  = {"green": 0, "yellow": 0, "red": 0}
 
@@ -247,28 +253,43 @@ class Command(BaseCommand):
             tags = way.get("tags", {})
             cond, lvl = classify(tags)
             way_nodes = way.get("nodes", [])
-            for i in range(len(way_nodes) - 1):
-                a = nodes.get(way_nodes[i])
-                b = nodes.get(way_nodes[i + 1])
-                if not a or not b:
-                    continue
-                if haversine_m(a[0], a[1], b[0], b[1]) < opts["min_meters"]:
-                    skipped_short += 1
-                    continue
 
-                to_create.append(Segment(
-                    start_lat=round(a[0], 6), start_lng=round(a[1], 6),
-                    end_lat=round(b[0], 6),   end_lng=round(b[1], 6),
-                    condition=cond, infra_level=lvl,
-                    is_created=False, user=sys_user,
-                ))
-                per_level[lvl] += 1
-                per_cond[cond]  += 1
+            # Way-ийн бүх node-ыг (lat, lng)-ээр цуглуулна
+            geom = []
+            for nid in way_nodes:
+                pt = nodes.get(nid)
+                if pt:
+                    geom.append({"lat": round(pt[0], 6), "lng": round(pt[1], 6)})
+
+            if len(geom) < 2:
+                skipped_invalid += 1
+                continue
+
+            # Way-ийн нийт уртыг тооцох (хэт богино way-ыг алгасах)
+            total_m = sum(
+                haversine_m(geom[i]["lat"], geom[i]["lng"],
+                            geom[i + 1]["lat"], geom[i + 1]["lng"])
+                for i in range(len(geom) - 1)
+            )
+            if total_m < opts["min_meters"]:
+                skipped_short += 1
+                continue
+
+            to_create.append(Segment(
+                start_lat=geom[0]["lat"],  start_lng=geom[0]["lng"],
+                end_lat=geom[-1]["lat"],   end_lng=geom[-1]["lng"],
+                geometry=geom,                        # бүх цэг JSON-оор
+                condition=cond, infra_level=lvl,
+                is_created=False, user=sys_user,
+            ))
+            per_level[lvl] += 1
+            per_cond[cond]  += 1
 
         # ── Report ────────────────────────────────────────────────────
         self.stdout.write("")
         self.stdout.write(self.style.MIGRATE_HEADING("Summary"))
         self.stdout.write(f"  Segments to import:   {len(to_create)}")
+        self.stdout.write(f"  Skipped (invalid):    {skipped_invalid}")
         self.stdout.write(f"  Skipped (too short):  {skipped_short}")
         self.stdout.write(f"  Per condition:        {per_cond}")
         self.stdout.write(f"  Per infra level:      {per_level}")

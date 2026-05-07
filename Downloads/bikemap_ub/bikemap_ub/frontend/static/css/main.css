@@ -225,6 +225,33 @@ textarea.form-control { resize: none; }
   margin-bottom: .35rem;
   display: block;
 }
+.bm-stat-card .bm-stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--bm-text);
+  margin-bottom: .15rem;
+}
+.bm-stat-card .bm-stat-label {
+  font-size: .72rem;
+  color: var(--bm-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+/* Stats page — dark cards use light text (defensive against Bootstrap default) */
+.card.bg-darker, .card.bg-darker .card-body {
+  color: var(--bm-text);
+}
+.card.bg-darker h1,
+.card.bg-darker h2,
+.card.bg-darker h3,
+.card.bg-darker h4,
+.card.bg-darker h5,
+.card.bg-darker h6 {
+  color: var(--bm-text);
+}
 
 /* ── Dashboard Stat Cards ─────────────────────────────────────────────────── */
 .bm-dash-card {

@@ -20,6 +20,7 @@ import gpxpy
 from apps.accounts.permissions import IsCyclistOrAbove
 from apps.pois.models import POI
 from apps.aggregation.models import CrowdAggregation
+from apps.segments.models import Segment
 
 
 def _haversine_m(lat1, lng1, lat2, lng2):
@@ -151,9 +152,31 @@ class SmartRouteView(APIView):
       "end":   {"lat": float, "lng": float},
       "mode":  "safe" | "fast"   (US-041)
     }
-    Returns OSRM route annotated with segment colours + POI hazards — US-040
+
+    "fast" mode  → OSRM-ийн хамгийн богино зам шууд буцаана.
+    "safe" mode  → OSRM-аас 3 хүртэл alternative зам авч, хэрэглэгчдийн
+                   оруулсан Segment (infra_level + condition) болон
+                   аюулын POI-той давхцалаар нь score тооцон, аюулгүй
+                   зэрэглэлтэй хамгийн их оноотойг буцаана.
+
+    Score = sum(safety_per_overlapping_segment) - hazard_penalty
+        - infra_level 1 (тусгаарлагдсан) =  +6
+        - infra_level 2                  =  +5
+        - infra_level 3                  =  +4
+        - infra_level 4                  =  +2
+        - infra_level 5                  =  +0
+        - infra_level 6 (нийтийн машинт.) =  -1
+        - condition green                =  +2
+        - condition yellow               =   0
+        - condition red                  =  -4
+        - hazard POI ойролцоо            =  -5
     """
     permission_classes = [permissions.AllowAny]
+
+    # ── Scoring weights ────────────────────────────────────────────
+    LEVEL_W   = {1: 6, 2: 5, 3: 4, 4: 2, 5: 0, 6: -1}
+    COND_W    = {"green": 2, "yellow": 0, "red": -4}
+    HAZARD_W  = -5
 
     def post(self, request):
         start = request.data.get("start")
@@ -163,11 +186,14 @@ class SmartRouteView(APIView):
         if not start or not end:
             return Response({"error": "start and end required"}, status=400)
 
-        # 1. Fetch base route from OSRM
+        # ── 1. Fetch route(s) from OSRM ────────────────────────────
+        # safe mode-д alternatives асаана. fast mode-д шортхэн нэг л.
+        alt_flag = "true" if mode == "safe" else "false"
         osrm_url = (
             f"{settings.OSRM_BASE_URL}/route/v1/cycling/"
             f"{start['lng']},{start['lat']};{end['lng']},{end['lat']}"
             f"?overview=full&geometries=geojson&steps=true"
+            f"&alternatives={alt_flag}"
         )
         osrm_data = None
         if REQUESTS_AVAILABLE:
@@ -178,26 +204,44 @@ class SmartRouteView(APIView):
             except Exception:
                 pass
 
-        # 2. If OSRM unavailable, return straight-line fallback
+        # ── 2. Fallback (OSRM unavailable) ─────────────────────────
         if not osrm_data or not osrm_data.get("routes"):
             route_coords = [
                 [start["lng"], start["lat"]],
                 [end["lng"],   end["lat"]],
             ]
-            # Use Haversine for a realistic fallback distance instead of fixed 1km
             distance_m = _haversine_m(start["lat"], start["lng"],
                                        end["lat"], end["lng"])
-            # Assume 15 km/h cycling speed for the fallback ETA
             duration_s = int((distance_m / 1000) / 15 * 3600) if distance_m else 0
-            routing_status = "fallback"
-        else:
-            route        = osrm_data["routes"][0]
-            route_coords = route["geometry"]["coordinates"]
-            distance_m   = route["distance"]
-            duration_s   = route["duration"]
-            routing_status = "osrm"
+            return Response({
+                "mode":           mode,
+                "routing_status": "fallback",
+                "distance_m":     distance_m,
+                "duration_s":     duration_s,
+                "coordinates":    route_coords,
+                "segments":       [],
+                "hazards":        [],
+                "score":          None,
+                "alternatives_count": 0,
+            })
 
-        # 3. Annotate with aggregation colours
+        # ── 3. Score each candidate (only for safe mode) ───────────
+        candidates = osrm_data["routes"]
+        if mode == "safe" and len(candidates) > 1:
+            scored = [(self._score_route(r["geometry"]["coordinates"]), r)
+                      for r in candidates]
+            scored.sort(key=lambda x: x[0], reverse=True)
+            best_score, best = scored[0]
+        else:
+            best = candidates[0]
+            best_score = (self._score_route(best["geometry"]["coordinates"])
+                          if mode == "safe" else None)
+
+        route_coords = best["geometry"]["coordinates"]
+        distance_m   = best["distance"]
+        duration_s   = best["duration"]
+
+        # ── 4. Annotate route with crowd-aggregation colours ───────
         segments_colour = []
         for i in range(len(route_coords) - 1):
             lng1, lat1 = route_coords[i]
@@ -210,12 +254,10 @@ class SmartRouteView(APIView):
             segments_colour.append({"from": [lng1, lat1], "to": [lng2, lat2],
                                      "colour": colour})
 
-        # 4. Nearby POI hazards (within ~50 m) — US-040
+        # ── 5. Nearby POI hazards on chosen route ──────────────────
         danger_types = ["danger", "road_damage", "no_bike_lane"]
-        seen_hazard_ids = set()
-        hazards = []
-        for coord in route_coords:
-            lng, lat = coord
+        hazards, seen = [], set()
+        for lng, lat in route_coords:
             nearby = POI.objects.filter(
                 status="approved",
                 poi_type__in=danger_types,
@@ -223,22 +265,82 @@ class SmartRouteView(APIView):
                 longitude__range=(lng - 0.0005, lng + 0.0005),
             )
             for p in nearby:
-                if p.id not in seen_hazard_ids:
-                    seen_hazard_ids.add(p.id)
-                    hazards.append({
-                        "id": p.id, "poi_type": p.poi_type,
-                        "lat": float(p.latitude), "lng": float(p.longitude),
-                    })
+                if p.id in seen:
+                    continue
+                seen.add(p.id)
+                hazards.append({
+                    "id": p.id, "poi_type": p.poi_type,
+                    "lat": float(p.latitude), "lng": float(p.longitude),
+                })
 
         return Response({
-            "mode":           mode,
-            "routing_status": routing_status,  # "osrm" | "fallback"
-            "distance_m":     distance_m,
-            "duration_s":     duration_s,
-            "coordinates":    route_coords,
-            "segments":       segments_colour,
-            "hazards":        hazards,
+            "mode":               mode,
+            "routing_status":     "osrm",
+            "distance_m":         distance_m,
+            "duration_s":         duration_s,
+            "coordinates":        route_coords,
+            "segments":           segments_colour,
+            "hazards":            hazards,
+            "score":              best_score,
+            "alternatives_count": len(candidates),
         })
+
+    # ── Safety scoring ────────────────────────────────────────────────
+    def _score_route(self, route_coords):
+        """Score a candidate route based on overlap with crowd-sourced
+        Segments and proximity to hazard POIs.
+
+        Higher score = safer. Segments are detected via spatial bbox query
+        for performance. Each segment counts at most once per route.
+        """
+        if not route_coords or len(route_coords) < 2:
+            return 0
+
+        lats = [c[1] for c in route_coords]
+        lngs = [c[0] for c in route_coords]
+        # +-0.001 deg ≈ 100m padding
+        lat_lo, lat_hi = min(lats) - 0.001, max(lats) + 0.001
+        lng_lo, lng_hi = min(lngs) - 0.001, max(lngs) + 0.001
+
+        # ─ Pull all candidate segments in the bbox once
+        segs = list(Segment.objects.filter(
+            start_lat__range=(lat_lo, lat_hi),
+            start_lng__range=(lng_lo, lng_hi),
+        ).only("start_lat", "start_lng", "infra_level", "condition")[:1000])
+
+        score = 0
+        # Sample every 4th route point to keep checks fast
+        sampled = route_coords[::4] or route_coords
+        for seg in segs:
+            try:
+                sl, sn = float(seg.start_lat), float(seg.start_lng)
+            except Exception:
+                continue
+            # Is this segment near any sampled point of the route?
+            for lng, lat in sampled:
+                if abs(lat - sl) < 0.0008 and abs(lng - sn) < 0.0008:
+                    score += self.LEVEL_W.get(seg.infra_level, 0)
+                    score += self.COND_W.get(seg.condition, 0)
+                    break  # count each seg once
+
+        # ─ Hazard POIs in bbox
+        hazards_qs = POI.objects.filter(
+            status="approved",
+            poi_type__in=["danger", "road_damage", "no_bike_lane"],
+            latitude__range=(lat_lo, lat_hi),
+            longitude__range=(lng_lo, lng_hi),
+        ).only("latitude", "longitude")
+        for poi in hazards_qs:
+            try:
+                pl, pn = float(poi.latitude), float(poi.longitude)
+            except Exception:
+                continue
+            for lng, lat in sampled:
+                if abs(lat - pl) < 0.0006 and abs(lng - pn) < 0.0006:
+                    score += self.HAZARD_W
+                    break
+
+        return score
 
 
 class SnapToRoadView(APIView):
