@@ -82,6 +82,12 @@ function renderSegments() {
       `<strong>${seg.condition.toUpperCase()}</strong>` +
       ` · Зэрэглэл ${lvl} — ${INFRA_LABEL[lvl] || ''}`
     )
+    .on('mouseover', function() {
+      if (!RoadEditMode.isActive()) this.setStyle({ weight: opts.weight + 3, opacity: 1 });
+    })
+    .on('mouseout',  function() {
+      if (!RoadEditMode.isActive()) this.setStyle({ weight: opts.weight, opacity: opts.opacity });
+    })
     .addTo(segLayer);
   });
 }
@@ -99,18 +105,136 @@ function renderSegmentList(q='') {
     return;
   }
   const labels = {green:'🟢 Дугуйн зам', yellow:'🟡 Боломжтой', red:'🔴 Боломжгүй'};
-  el.innerHTML = items.map(s=>`
-    <div class="card bg-dark border-secondary mb-2 bm-segment-card ${s.condition}" style="cursor:pointer"
-         onclick="map.setView([${s.start_lat},${s.start_lng}],15)">
+  const me = (Auth?.getUser?.() || null);
+  const myId = me?.id || null;
+  const isMod = me && ['admin', 'moderator'].includes(me.role);
+
+  el.innerHTML = items.map(s => {
+    const canEdit = (myId && s.user?.id === myId) || isMod;
+    return `
+    <div class="card bg-dark border-secondary mb-2 bm-segment-card ${s.condition}">
       <div class="card-body py-2 px-3">
-        <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex justify-content-between align-items-center"
+             style="cursor:pointer"
+             onclick="map.setView([${s.start_lat},${s.start_lng}],15)">
           <span class="small fw-semibold">${labels[s.condition]||s.condition}</span>
           <span class="text-secondary" style="font-size:.7rem">Lvl ${s.infra_level}</span>
         </div>
-        <div class="text-secondary" style="font-size:.7rem">${s.user?.username||'—'} · ${new Date(s.created_at).toLocaleDateString()}</div>
+        <div class="text-secondary" style="font-size:.7rem">
+          ${s.user?.username||'—'} · ${new Date(s.created_at).toLocaleDateString()}
+        </div>
+        ${canEdit ? `
+        <div class="d-flex gap-1 mt-2">
+          <button class="btn btn-outline-warning btn-sm py-0 px-2"
+                  style="font-size:.7rem"
+                  onclick="event.stopPropagation(); SegmentEdit.open(${s.id})">
+            <i class="bi bi-pencil"></i> Засах
+          </button>
+          <button class="btn btn-outline-danger btn-sm py-0 px-2"
+                  style="font-size:.7rem"
+                  onclick="event.stopPropagation(); SegmentEdit.remove(${s.id})">
+            <i class="bi bi-trash"></i> Устгах
+          </button>
+        </div>` : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
+
+// ── Segment edit / delete module ────────────────────────────────────
+const SegmentEdit = {
+  open(id) {
+    const seg = allSegments.find(s => s.id === id);
+    if (!seg) return;
+
+    // Modal үүсгэх
+    let modal = document.getElementById('segEditModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'segEditModal';
+      modal.className = 'modal fade';
+      modal.setAttribute('tabindex', '-1');
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border border-secondary">
+          <div class="modal-header border-secondary">
+            <h6 class="modal-title">
+              <i class="bi bi-pencil-square me-1"></i>Сегмент засварлах
+            </h6>
+            <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label small text-secondary">Замын нөхцөл</label>
+              <div class="d-flex gap-2">
+                ${['green','yellow','red'].map(c => `
+                  <button class="btn flex-fill ${seg.condition===c?'active':''}"
+                          data-cond="${c}"
+                          style="background:${ {green:'#22c55e',yellow:'#f59e0b',red:'#ef4444'}[c] };color:#000"
+                          onclick="SegmentEdit._setCond('${c}')">
+                    ${c==='green'?'🟢 Ногоон':c==='yellow'?'🟡 Шар':'🔴 Улаан'}
+                  </button>`).join('')}
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small text-secondary">Дэд бүтцийн зэрэглэл (1..6)</label>
+              <select class="form-select bg-dark text-light border-secondary" id="segEditLevel">
+                <option value="1" ${seg.infra_level===1?'selected':''}>1 — Тусгаарлагдсан дугуйн зам</option>
+                <option value="2" ${seg.infra_level===2?'selected':''}>2 — Холимог ашиглалт</option>
+                <option value="3" ${seg.infra_level===3?'selected':''}>3 — Хамгаалалттай эгнээ</option>
+                <option value="4" ${seg.infra_level===4?'selected':''}>4 — Тэмдэглэгээт эгнээ</option>
+                <option value="5" ${seg.infra_level===5?'selected':''}>5 — Явган хүний зам</option>
+                <option value="6" ${seg.infra_level===6?'selected':''}>6 — Дундаа ашиглах зам</option>
+              </select>
+            </div>
+            <input type="hidden" id="segEditId" value="${seg.id}">
+            <input type="hidden" id="segEditCond" value="${seg.condition}">
+          </div>
+          <div class="modal-footer border-secondary">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Цуцлах</button>
+            <button class="btn btn-success" onclick="SegmentEdit._save()">
+              <i class="bi bi-check-lg me-1"></i>Хадгалах
+            </button>
+          </div>
+        </div>
+      </div>`;
+    new bootstrap.Modal(modal).show();
+  },
+
+  _setCond(c) {
+    document.getElementById('segEditCond').value = c;
+    document.querySelectorAll('#segEditModal [data-cond]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.cond === c);
+    });
+  },
+
+  async _save() {
+    const id    = document.getElementById('segEditId').value;
+    const cond  = document.getElementById('segEditCond').value;
+    const level = parseInt(document.getElementById('segEditLevel').value, 10);
+    try {
+      await API.updateSegment(id, { condition: cond, infra_level: level });
+      showToast('success', 'Сегмент шинэчлэгдлээ');
+      bootstrap.Modal.getInstance(document.getElementById('segEditModal')).hide();
+      loadSegments();
+    } catch (e) {
+      showToast('danger', e.message);
+    }
+  },
+
+  async remove(id) {
+    if (!confirm('Энэ сегментийг устгах уу?')) return;
+    try {
+      await API.deleteSegment(id);
+      showToast('success', 'Сегмент устгагдлаа');
+      loadSegments();
+    } catch (e) {
+      showToast('danger', e.message);
+    }
+  },
+};
 
 async function loadSegments() {
   try {
@@ -145,9 +269,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (extraClass) p.classList.add(extraClass);
     return p;
   };
-  _pane('bm-segments',     410, 'bm-segments-pane');     // colored road segments
-  _pane('bm-route-casing', 460, 'bm-route-casing-pane'); // dark outline beneath the route
-  _pane('bm-route-line',   470, 'bm-route-line-pane');   // bright top route line
+  _pane('bm-segments',      410, 'bm-segments-pane');
+  _pane('bm-edit-highlight',450, '');                     // road edit selection highlight
+  _pane('bm-route-casing',  460, 'bm-route-casing-pane');
+  _pane('bm-route-line',    470, 'bm-route-line-pane');
 
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
@@ -160,13 +285,15 @@ document.addEventListener('DOMContentLoaded', () => {
   window.gpxLayerGroup = gpxLayerGroup;
 
   // Init modules
-  try { SegmentDraw.init(map); } catch(e) { console.error('SegmentDraw init error:', e); }
-  try { POIManager.init(map); } catch(e) { console.error('POIManager init error:', e); }
-  try { SmartRoute.init(map); } catch(e) { console.error('SmartRoute init error:', e); }
+  try { SegmentDraw.init(map); }    catch(e) { console.error('SegmentDraw init:', e); }
+  try { POIManager.init(map); }     catch(e) { console.error('POIManager init:', e); }
+  try { SmartRoute.init(map); }     catch(e) { console.error('SmartRoute init:', e); }
+  try { RoadEditMode.init(map); }   catch(e) { console.error('RoadEditMode init:', e); }
 
   // Map click dispatch
   map.on('click', e => {
-    if (activeTab === 'segment') { SegmentDraw.handleMapClick(e.latlng); return; }
+    if (RoadEditMode.isActive())    { RoadEditMode.handleMapClick(e.latlng); return; }
+    if (activeTab === 'segment')    { SegmentDraw.handleMapClick(e.latlng); return; }
     if (POIManager.handleMapClick(e.latlng)) return;
     if (SmartRoute.handleMapClick(e.latlng)) return;
   });
@@ -188,4 +315,4 @@ document.addEventListener('DOMContentLoaded', () => {
   try { POIManager.loadPOIs(); } catch(e) { console.error('POI load error during init:', e); }
 });
 
-window.MapMain = { loadSegments };
+window.MapMain = { loadSegments, getSegments: () => allSegments };

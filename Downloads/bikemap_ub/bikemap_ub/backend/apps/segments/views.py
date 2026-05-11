@@ -5,6 +5,7 @@ from .models import Segment
 from .serializers import SegmentSerializer
 from apps.accounts.permissions import IsCyclistOrAbove, IsOwnerOrMod
 from apps.aggregation.tasks import update_aggregation
+from apps.audit_log.models import AuditLog
 
 
 class SegmentViewSet(viewsets.ModelViewSet):
@@ -44,6 +45,34 @@ class SegmentViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         seg = serializer.save()
         update_aggregation(seg)
+
+    def perform_destroy(self, instance):
+        """Сегмент устгах + audit log + aggregation шинэчлэх"""
+        seg_id = instance.id
+        # aggregation-г шинэчлэхийн тулд устгахаас өмнө хадгалах
+        snapshot = {
+            "start_lat": instance.start_lat, "start_lng": instance.start_lng,
+            "end_lat":   instance.end_lat,   "end_lng":   instance.end_lng,
+        }
+        AuditLog.log(
+            actor=self.request.user,
+            action="segment_delete",
+            target_type="Segment",
+            target_id=seg_id,
+            detail=f"condition={instance.condition}, infra_level={instance.infra_level}",
+            request=self.request,
+        )
+        instance.delete()
+        # aggregation-ийг тухайн орон зайн нүдэнд дахин тооцоолох
+        try:
+            class _Snap:  # тооцоололд хэрэгтэй field-үүдтэй wrapper
+                pass
+            tmp = _Snap()
+            for k, v in snapshot.items():
+                setattr(tmp, k, v)
+            update_aggregation(tmp)
+        except Exception:
+            pass
 
     @action(detail=False, methods=["post"], permission_classes=[IsCyclistOrAbove],
             url_path="bulk-import")

@@ -1,0 +1,394 @@
+{% extends "base/base.html" %}
+{% block title %}GPX Import — BikeMap UB{% endblock %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+  /* ─── Page layout ────────────────────────────────────────────────── */
+  .gpx-page {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    grid-template-rows: 1fr 220px;
+    height: calc(100vh - 56px);
+    gap: 0;
+    background: #0b0f17;
+  }
+  .gpx-sidebar {
+    grid-row: 1 / 3;
+    background: #0f1623;
+    border-right: 1px solid #1f2937;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .gpx-map-area {
+    position: relative;
+    background: #1a1f2c;
+  }
+  #gpxMap { width: 100%; height: 100%; }
+  .gpx-chart-area {
+    background: #0f1623;
+    border-top: 1px solid #1f2937;
+    padding: 12px 18px;
+    position: relative;
+  }
+  /* ─── Sidebar elements ──────────────────────────────────────────── */
+  .gpx-upload-zone {
+    border: 2px dashed #374151;
+    border-radius: 12px;
+    padding: 32px 20px;
+    text-align: center;
+    background: rgba(255,255,255,.02);
+    transition: all .2s;
+    cursor: pointer;
+  }
+  .gpx-upload-zone:hover {
+    border-color: #22c55e;
+    background: rgba(34,197,94,.06);
+  }
+  .gpx-upload-zone.has-file {
+    border-color: #22c55e;
+    border-style: solid;
+    background: rgba(34,197,94,.04);
+  }
+  .gpx-stat {
+    background: rgba(255,255,255,.04);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .gpx-stat-label {
+    font-size: .65rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .gpx-stat-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #f3f4f6;
+    margin-top: 2px;
+  }
+  .gpx-split-card {
+    background: rgba(255,255,255,.04);
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 8px;
+    transition: border-color .15s;
+  }
+  .gpx-split-card.active {
+    border-color: #22c55e;
+  }
+  .level-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: .7rem;
+    font-weight: 500;
+  }
+  /* ─── Map cursor highlight ─────────────────────────────────────── */
+  .gpx-hover-marker {
+    background: #fff;
+    border: 3px solid #22c55e;
+    border-radius: 50%;
+    width: 14px !important;
+    height: 14px !important;
+    box-shadow: 0 0 0 4px rgba(34,197,94,.3);
+  }
+
+  /* ─── Split point markers (numbered chip) ──────────────────────── */
+  .gpx-split-marker {
+    pointer-events: auto;
+  }
+  .gpx-split-marker-inner {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    color: #0b1220;
+    font-size: .75rem;
+    font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid #22c55e;
+    box-shadow: 0 2px 6px rgba(0,0,0,.5);
+    cursor: pointer;
+    transition: transform .15s;
+  }
+  .gpx-split-marker-inner:hover { transform: scale(1.15); }
+
+  /* ─── Split card layout ────────────────────────────────────────── */
+  .gpx-split-card {
+    cursor: pointer;
+    transition: all .18s;
+  }
+  .gpx-split-card:hover {
+    border-color: #4b5563;
+    background: rgba(255,255,255,.06);
+  }
+  .gpx-split-card.active {
+    border-color: #22c55e;
+    background: rgba(34,197,94,.08);
+    box-shadow: 0 0 0 1px rgba(34,197,94,.4);
+  }
+
+  .gpx-split-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    color: #0b1220;
+    font-size: .72rem;
+    font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ─── Condition pills (large, clear) ───────────────────────────── */
+  .gpx-cond-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .gpx-cond-pill {
+    background: rgba(255,255,255,.04);
+    border: 1px solid #1f2937;
+    color: #9ca3af;
+    border-radius: 8px;
+    padding: .42rem .35rem;
+    font-size: .72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    line-height: 1.1;
+  }
+  .gpx-cond-pill:hover {
+    border-color: var(--cond-color);
+    color: #f3f4f6;
+  }
+  .gpx-cond-pill.active {
+    background: var(--cond-color);
+    border-color: var(--cond-color);
+    color: #0b1220;
+    box-shadow: 0 0 0 2px rgba(255,255,255,.06);
+  }
+
+  /* ─── Level buttons (1..6 grid) ───────────────────────────────── */
+  .gpx-level-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+  }
+  .gpx-level-btn {
+    background: rgba(255,255,255,.04);
+    border: 1px solid #1f2937;
+    color: #9ca3af;
+    border-radius: 6px;
+    padding: .4rem 0;
+    font-size: .85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .gpx-level-btn:hover {
+    border-color: var(--lvl-color);
+    color: #f3f4f6;
+  }
+  .gpx-level-btn.active {
+    background: var(--lvl-color);
+    border-color: var(--lvl-color);
+    color: #0b1220;
+    box-shadow: 0 0 0 2px rgba(255,255,255,.06);
+  }
+  .gpx-sidebar-label {
+    font-size: .65rem;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+
+  /* ─── Edit-mode floating prompt (top of map) ──────────────────── */
+  .gpx-edit-prompt {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 950;
+    background: rgba(15, 22, 35, 0.95);
+    color: #f3f4f6;
+    border: 1px solid #22c55e;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: .82rem;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    pointer-events: none;
+    white-space: nowrap;
+    display: none;
+  }
+
+  /* ─── A / B start-end pins ────────────────────────────────────── */
+  .gpx-edit-marker { pointer-events: none; }
+  .gpx-edit-pin {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #0b1220;
+    font-weight: 800;
+    font-size: .82rem;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.6);
+  }
+  .gpx-edit-pin.start { background: #22c55e; }
+  .gpx-edit-pin.end   { background: #ef4444; }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="gpx-page">
+  <!-- ── Sidebar ────────────────────────────────────────────────── -->
+  <aside class="gpx-sidebar">
+    <h5 class="text-light mb-1">
+      <i class="bi bi-upload me-1"></i>GPX Import
+    </h5>
+    <p class="text-secondary small mb-3">
+      Strava, Ride with GPS, Garmin зэргээс гарсан <code>.gpx</code> файл
+      оруулж замын condition + 1..6 зэрэглэлийг хэсэгчлэн тэмдэглэнэ.
+    </p>
+
+    <!-- Upload zone -->
+    <label id="gpxUploadZone" for="gpxFile" class="gpx-upload-zone d-block mb-3">
+      <i class="bi bi-cloud-upload" style="font-size:1.8rem;color:#6b7280"></i>
+      <div id="gpxUploadLabel" class="mt-2 text-light">.gpx файл сонгох</div>
+      <div class="text-secondary small mt-1">эсвэл энд чирж тавина</div>
+    </label>
+    <input type="file" id="gpxFile" accept=".gpx" hidden onchange="GPXImportPage.load(this)">
+
+    <!-- Stats panel -->
+    <div id="gpxStatsPanel" class="d-none mb-3">
+      <div class="row g-2">
+        <div class="col-6"><div class="gpx-stat">
+          <div class="gpx-stat-label">Зайн нийт</div>
+          <div class="gpx-stat-value" id="gpxStatDist">0 км</div>
+        </div></div>
+        <div class="col-6"><div class="gpx-stat">
+          <div class="gpx-stat-label">Цэг тоо</div>
+          <div class="gpx-stat-value" id="gpxStatPoints">0</div>
+        </div></div>
+        <div class="col-6"><div class="gpx-stat">
+          <div class="gpx-stat-label">Өндөржилт</div>
+          <div class="gpx-stat-value" id="gpxStatGain">+0 м</div>
+        </div></div>
+        <div class="col-6"><div class="gpx-stat">
+          <div class="gpx-stat-label">Бууралт</div>
+          <div class="gpx-stat-value" id="gpxStatLoss">−0 м</div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- Auto-detect summary panel (default after upload) -->
+    <div id="gpxSummaryPanel" class="d-none">
+      <h6 class="text-light mb-2">
+        <i class="bi bi-magic text-success me-1"></i>Авто-таних үр дүн
+      </h6>
+      <p class="text-secondary small mb-3">
+        Замын хэсэг бүрийг хэрэглэгчдийн тэмдэглэсэн өгөгдөлтэй
+        тулгаж <strong>condition + зэрэглэлийг автоматаар</strong> оноосон.
+      </p>
+
+      <div class="row g-2 mb-2">
+        <div class="col-4"><div class="gpx-stat">
+          <div class="gpx-stat-label">🟢 Зам</div>
+          <div class="gpx-stat-value text-success" id="kmGreen">0 км</div>
+        </div></div>
+        <div class="col-4"><div class="gpx-stat">
+          <div class="gpx-stat-label">🟡 Боломжтой</div>
+          <div class="gpx-stat-value text-warning" id="kmYellow">0 км</div>
+        </div></div>
+        <div class="col-4"><div class="gpx-stat">
+          <div class="gpx-stat-label">🔴 Боломжгүй</div>
+          <div class="gpx-stat-value text-danger" id="kmRed">0 км</div>
+        </div></div>
+      </div>
+      <div class="text-secondary small mb-3" id="kmUnknown">
+        Тэмдэглэгдээгүй хэсэг: 0 км
+      </div>
+
+      <button id="btnSaveGPX" class="btn btn-success w-100 mb-2"
+              onclick="GPXImportPage.save()">
+        <i class="bi bi-check-lg me-1"></i>Зөв — Хадгалах
+      </button>
+      <button class="btn btn-outline-warning w-100 mb-2"
+              onclick="GPXImportPage.toggleEditMode()">
+        <i class="bi bi-pencil me-1"></i>Засах
+      </button>
+      <button class="btn btn-outline-secondary w-100"
+              onclick="GPXImportPage.clear()">
+        <i class="bi bi-x-lg me-1"></i>Цуцлах
+      </button>
+    </div>
+
+    <!-- Edit-mode toolbar -->
+    <div id="gpxEditToolbar" class="d-none">
+      <h6 class="text-light mb-2">
+        <i class="bi bi-pencil-square me-1 text-warning"></i>Зам засах горим
+      </h6>
+      <p class="text-secondary small mb-3">
+        Map дээрх замын line дээр <strong>эхлэх</strong>, дараа нь <strong>төгсгөл</strong>
+        цэгийг дарж сонгоно. Сонгогдсон хэсэгт condition + зэрэглэлээ
+        оноогоод «Хадгалах» дар.
+      </p>
+
+      <div class="gpx-sidebar-label small text-secondary mb-1">Нөхцөл</div>
+      <div class="gpx-cond-row mb-3" id="gpxEditCondRow"></div>
+
+      <div class="gpx-sidebar-label small text-secondary mb-1">Зэрэглэл</div>
+      <select id="gpxEditLevel" class="form-select form-select-sm bg-dark text-light border-secondary mb-3" style="font-size:.8rem">
+        <option value="1">1 — Тусгаарлагдсан дугуйн зам</option>
+        <option value="2">2 — Холимог ашиглалтын зам</option>
+        <option value="3">3 — Хамгаалалттай эгнээ</option>
+        <option value="4" selected>4 — Тэмдэглэгээт эгнээ</option>
+        <option value="5">5 — Явган хүний зам</option>
+        <option value="6">6 — Дундаа ашиглах зам</option>
+      </select>
+
+      <button id="btnApplyEdit" class="btn btn-success w-100 mb-2"
+              onclick="GPXImportPage.applyEdit()" disabled>
+        <i class="bi bi-check-lg me-1"></i>Хэсгийг хадгалах
+      </button>
+      <div class="d-flex gap-2 mb-2">
+        <button class="btn btn-outline-secondary btn-sm flex-fill"
+                onclick="GPXImportPage.cancelEdit()" title="Сонгосон цэгүүдийг цуцлах">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Цуцлах
+        </button>
+        <button class="btn btn-outline-info btn-sm flex-fill"
+                onclick="GPXImportPage.undoEdit()" title="Өмнөх засварыг буцаах">
+          <i class="bi bi-arrow-90deg-left me-1"></i>Undo
+        </button>
+      </div>
+      <button id="btnSaveGPXEdit" class="btn btn-success btn-sm w-100 mb-2"
+              onclick="GPXImportPage.save()">
+        <i class="bi bi-cloud-arrow-up me-1"></i>Бүгдийг DB-д хадгалах
+      </button>
+      <button class="btn btn-outline-warning btn-sm w-100"
+              onclick="GPXImportPage.toggleEditMode()">
+        <i class="bi bi-arrow-left me-1"></i>Дуусгах (Summary рүү)
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Map ───────────────────────────────────────────────────── -->
+  <div class="gpx-map-area">
+    <div id="gpxMap"></div>
+  </div>
+
+  <!-- ── Elevation chart ───────────────────────────────────────── -->
+  <div class="gpx-chart-area">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <small class="text-secondary">Өндөржилт (м) / Зай (км)</small>
+      <small class="text-secondary" id="gpxHoverInfo"></small>
+    </div>
+    <canvas id="gpxElevChart" height="170"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/gpx_import_page.js' %}"></script>
+{% endblock %}

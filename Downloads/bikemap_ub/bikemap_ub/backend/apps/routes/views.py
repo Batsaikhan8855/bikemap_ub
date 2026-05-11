@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework import permissions, status
 from django.http import HttpResponse
 from django.conf import settings
+from django.db.models import Q
 try:
     import requests as req_lib
     REQUESTS_AVAILABLE = True
@@ -21,6 +22,7 @@ from apps.accounts.permissions import IsCyclistOrAbove
 from apps.pois.models import POI
 from apps.aggregation.models import CrowdAggregation
 from apps.segments.models import Segment
+from apps.aggregation.tasks import update_aggregation
 
 
 def _haversine_m(lat1, lng1, lat2, lng2):
@@ -31,6 +33,42 @@ def _haversine_m(lat1, lng1, lat2, lng2):
          + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2))
          * math.sin(dlng / 2) ** 2)
     return 2 * R * math.asin(math.sqrt(a))
+
+
+def _segment_match_points(seg):
+    """Сегментийг route-той тулгахад ашиглах sample цэгүүдийн жагсаалт.
+
+    OSM-аас орсон сегмент бүрд `geometry` field-д бүх node хадгалагдсан
+    (заримдаа 50+ цэг). Эхэн ба төгсгөлийн цэгийг хайх нь хангалтгүй —
+    route нь сегментийн ДУНДУУР яваад байж болно. Үүнийг засахын тулд
+    geometry-ийн хэд хэдэн цэг (~8 хэсгээр sample) буцаана.
+
+    Гар хийсэн (geometry-гүй) сегмент бол start + end л буцаана.
+    """
+    pts = []
+    geom = getattr(seg, "geometry", None)
+    if geom and isinstance(geom, list) and len(geom) >= 2:
+        # Long OSM way — sample every Nth node
+        step = max(1, len(geom) // 8)
+        for p in geom[::step]:
+            try:
+                pts.append((float(p["lat"]), float(p["lng"])))
+            except (KeyError, TypeError, ValueError):
+                continue
+        # Эцсийн цэгийг үргэлж нэмнэ
+        try:
+            last = geom[-1]
+            pts.append((float(last["lat"]), float(last["lng"])))
+        except (KeyError, TypeError, ValueError):
+            pass
+    if not pts:
+        # Manual segment (geometry-гүй) — start + end
+        try:
+            pts = [(float(seg.start_lat), float(seg.start_lng)),
+                   (float(seg.end_lat),   float(seg.end_lng))]
+        except Exception:
+            return []
+    return pts
 
 
 def _simplify_points(raw, target=120):
@@ -96,6 +134,92 @@ class GPXImportView(APIView):
             "total_simplified": len(simplified),
             "segment_count":    len(simplified) - 1,
         })
+
+
+class GPXImportSaveView(APIView):
+    """
+    POST /api/routes/gpx-import/save/
+
+    GPX-аас preview хийсэн point-уудыг **хэсэг хэсгээр** condition / infra_level
+    тэмдэглэж олон Segment-ээр bulk хадгална.
+
+    Body:
+    {
+      "splits": [
+        {
+          "points":      [{"lat": 47.918, "lng": 106.917}, ...],
+          "condition":   "green",     # green | yellow | red
+          "infra_level": 1            # 1..6
+        },
+        {
+          "points":      [{"lat": 47.920, "lng": 106.920}, ...],
+          "condition":   "yellow",
+          "infra_level": 4
+        },
+        ...
+      ]
+    }
+
+    Хариу:  { "created_count": N, "segment_ids": [...] }
+    """
+    permission_classes = [IsCyclistOrAbove]
+
+    def post(self, request):
+        splits = request.data.get("splits") or []
+        if not isinstance(splits, list) or not splits:
+            return Response({"error": "splits[] required"}, status=400)
+
+        valid_cond  = {"green", "yellow", "red"}
+        valid_level = {1, 2, 3, 4, 5, 6}
+        created_segments = []
+
+        for i, split in enumerate(splits):
+            pts   = split.get("points") or []
+            cond  = split.get("condition")
+            level = int(split.get("infra_level") or 0)
+
+            if cond not in valid_cond:
+                return Response({"error":
+                    f"split[{i}].condition must be one of {sorted(valid_cond)}"},
+                    status=400)
+            if level not in valid_level:
+                return Response({"error":
+                    f"split[{i}].infra_level must be 1..6"}, status=400)
+            if len(pts) < 2:
+                return Response({"error":
+                    f"split[{i}] must have ≥2 points"}, status=400)
+
+            # Цэг бүрийн дараалал бүрд нэг Segment үүсгэнэ
+            for j in range(len(pts) - 1):
+                p1, p2 = pts[j], pts[j + 1]
+                seg = Segment.objects.create(
+                    start_lat=round(float(p1["lat"]), 6),
+                    start_lng=round(float(p1["lng"]), 6),
+                    end_lat=round(float(p2["lat"]),   6),
+                    end_lng=round(float(p2["lng"]),   6),
+                    condition=cond,
+                    infra_level=level,
+                    user=request.user,
+                    is_created=False,  # GPX import-аас үүссэн
+                )
+                created_segments.append(seg)
+
+        # Crowd aggregation бүгдэд нь нэг удаа дуудлага хийнэ
+        for seg in created_segments:
+            try:
+                update_aggregation(seg)
+            except Exception:
+                pass
+
+        # User stat
+        user = request.user
+        user.total_segments += len(created_segments)
+        user.save(update_fields=["total_segments"])
+
+        return Response({
+            "created_count": len(created_segments),
+            "segment_ids":   [s.id for s in created_segments],
+        }, status=201)
 
 
 class GPXExportView(APIView):
@@ -174,9 +298,12 @@ class SmartRouteView(APIView):
     permission_classes = [permissions.AllowAny]
 
     # ── Scoring weights ────────────────────────────────────────────
-    LEVEL_W   = {1: 6, 2: 5, 3: 4, 4: 2, 5: 0, 6: -1}
-    COND_W    = {"green": 2, "yellow": 0, "red": -4}
+    # 6 түвшний дэд бүтцийн зэрэглэлийг бүгдийг харгалзана.
+    # User-н оруулсан Segment-д нийцэх маршрутыг илүү давамгайлуулна.
+    LEVEL_W   = {1: 8, 2: 6, 3: 4, 4: 2, 5: 0, 6: -2}   # 1=хамгийн аюулгүй
+    COND_W    = {"green": 4, "yellow": 0, "red": -6}    # green урамшуулна
     HAZARD_W  = -5
+    USER_GREEN_BONUS = 2  # user-н green Segment-д нэмэлт onoo
 
     def post(self, request):
         start = request.data.get("start")
@@ -241,18 +368,82 @@ class SmartRouteView(APIView):
         distance_m   = best["distance"]
         duration_s   = best["duration"]
 
-        # ── 4. Annotate route with crowd-aggregation colours ───────
+        # ── 4. Annotate route edge-бүрийг хамгийн ойрын хэрэглэгчийн
+        # Segment-ийн infra_level + condition-аар тэмдэглэх ──────────
+        # OSM-ийн урт way-ыг (бүтэн geometry-той) таних учир: сегмент
+        # бүрийн geometry-аас sample point-уудыг гаргаж memory-д хайна.
+        # Filter: сегментийн START эсвэл END цэгийн аль нэг нь route-ийн
+        # bbox дотор байвал хамтад нь авна.
+        lats = [c[1] for c in route_coords]
+        lngs = [c[0] for c in route_coords]
+        lat_lo, lat_hi = min(lats) - 0.005, max(lats) + 0.005
+        lng_lo, lng_hi = min(lngs) - 0.005, max(lngs) + 0.005
+
+        nearby_segs_qs = Segment.objects.filter(
+            Q(start_lat__range=(lat_lo, lat_hi),
+              start_lng__range=(lng_lo, lng_hi)) |
+            Q(end_lat__range=(lat_lo, lat_hi),
+              end_lng__range=(lng_lo, lng_hi))
+        ).only("start_lat", "start_lng", "end_lat", "end_lng",
+               "geometry", "infra_level", "condition")[:5000]
+
+        # Сегмент → sample point жагсаалт (нэг сегмент олон цэгтэй)
+        # Зөвхөн (lat, lng, infra_level, condition) tuple-аар хадгална.
+        seg_points = []
+        for s in nearby_segs_qs:
+            for plat, plng in _segment_match_points(s):
+                seg_points.append((plat, plng, s.infra_level, s.condition))
+
+        # Crowd aggregation-уудыг бас bbox-оор татаад memory-д лookup
+        nearby_aggs = list(CrowdAggregation.objects.filter(
+            start_lat__range=(min(lats) - 0.002, max(lats) + 0.002),
+            start_lng__range=(min(lngs) - 0.002, max(lngs) + 0.002),
+        ).only("start_lat", "start_lng", "dominant"))
+        agg_index = [(float(a.start_lat), float(a.start_lng), a.dominant)
+                     for a in nearby_aggs]
+
         segments_colour = []
         for i in range(len(route_coords) - 1):
             lng1, lat1 = route_coords[i]
             lng2, lat2 = route_coords[i + 1]
-            agg = CrowdAggregation.objects.filter(
-                start_lat__range=(lat1 - 0.002, lat1 + 0.002),
-                start_lng__range=(lng1 - 0.002, lng1 + 0.002),
-            ).first()
-            colour = agg.dominant if agg else "unknown"
-            segments_colour.append({"from": [lng1, lat1], "to": [lng2, lat2],
-                                     "colour": colour})
+            mid_lat = (lat1 + lat2) / 2
+            mid_lng = (lng1 + lng2) / 2
+
+            # Хамгийн ойрын user segment-ийн sample point (~80 м radius)
+            best, best_d = None, 0.0008
+            for plat, plng, lvl, cnd in seg_points:
+                d = abs(plat - mid_lat) + abs(plng - mid_lng)
+                if d < best_d:
+                    best_d = d
+                    best = (lvl, cnd)
+
+            # Crowd aggregation dominant colour (нэмэлт)
+            agg_best, agg_d = "unknown", 0.002
+            for al, an, dom in agg_index:
+                d = abs(al - mid_lat) + abs(an - mid_lng)
+                if d < agg_d:
+                    agg_d = d
+                    agg_best = dom
+
+            if best:
+                lvl, cnd = best
+                segments_colour.append({
+                    "from":        [lng1, lat1],
+                    "to":          [lng2, lat2],
+                    "infra_level": lvl,
+                    "condition":   cnd,
+                    "colour":      agg_best,
+                    "matched":     True,
+                })
+            else:
+                segments_colour.append({
+                    "from":        [lng1, lat1],
+                    "to":          [lng2, lat2],
+                    "infra_level": None,
+                    "condition":   "unknown",
+                    "colour":      agg_best,
+                    "matched":     False,
+                })
 
         # ── 5. Nearby POI hazards on chosen route ──────────────────
         danger_types = ["danger", "road_damage", "no_bike_lane"]
@@ -299,29 +490,45 @@ class SmartRouteView(APIView):
         lats = [c[1] for c in route_coords]
         lngs = [c[0] for c in route_coords]
         # +-0.001 deg ≈ 100m padding
-        lat_lo, lat_hi = min(lats) - 0.001, max(lats) + 0.001
-        lng_lo, lng_hi = min(lngs) - 0.001, max(lngs) + 0.001
+        lat_lo, lat_hi = min(lats) - 0.005, max(lats) + 0.005
+        lng_lo, lng_hi = min(lngs) - 0.005, max(lngs) + 0.005
 
-        # ─ Pull all candidate segments in the bbox once
+        # ─ Pull all candidate segments — segment-ийн START эсвэл END
+        # цэгийн аль нэг нь route-ийн bbox дотор байвал авна. (OSM-ийн
+        # урт way-ыг нэг ч endpoint нь нөгөө талд хол байсан ч авч чадна)
         segs = list(Segment.objects.filter(
-            start_lat__range=(lat_lo, lat_hi),
-            start_lng__range=(lng_lo, lng_hi),
-        ).only("start_lat", "start_lng", "infra_level", "condition")[:1000])
+            Q(start_lat__range=(lat_lo, lat_hi),
+              start_lng__range=(lng_lo, lng_hi)) |
+            Q(end_lat__range=(lat_lo, lat_hi),
+              end_lng__range=(lng_lo, lng_hi))
+        ).only("start_lat", "start_lng", "end_lat", "end_lng",
+               "geometry", "infra_level", "condition")[:1000])
 
         score = 0
         # Sample every 4th route point to keep checks fast
         sampled = route_coords[::4] or route_coords
         for seg in segs:
-            try:
-                sl, sn = float(seg.start_lat), float(seg.start_lng)
-            except Exception:
+            # OSM way бол geometry-аас олон цэг ашиглана; гар хийсэн
+            # сегмент бол start + end л үзнэ.
+            seg_pts = _segment_match_points(seg)
+            if not seg_pts:
                 continue
-            # Is this segment near any sampled point of the route?
-            for lng, lat in sampled:
-                if abs(lat - sl) < 0.0008 and abs(lng - sn) < 0.0008:
-                    score += self.LEVEL_W.get(seg.infra_level, 0)
-                    score += self.COND_W.get(seg.condition, 0)
-                    break  # count each seg once
+            matched = False
+            for sp_lat, sp_lng in seg_pts:
+                if matched:
+                    break
+                for lng, lat in sampled:
+                    if abs(lat - sp_lat) < 0.0008 and abs(lng - sp_lng) < 0.0008:
+                        score += self.LEVEL_W.get(seg.infra_level, 0)
+                        score += self.COND_W.get(seg.condition, 0)
+                        # Хэрэглэгчдийн оруулсан "green" сегментэд маршрут
+                        # таарвал нэмэлт онооноор давамгайлуулна — энэ нь
+                        # OSRM-н багц зам биш, харин user crowd-sourced
+                        # bike lane-уудыг сонгоход илүү ашиглах зорилготой
+                        if seg.condition == "green":
+                            score += self.USER_GREEN_BONUS
+                        matched = True
+                        break
 
         # ─ Hazard POIs in bbox
         hazards_qs = POI.objects.filter(
@@ -403,6 +610,126 @@ class SnapToRoadView(APIView):
         # Fallback: return the original points as a straight line.
         geometry = [{"lat": p["lat"], "lng": p["lng"]} for p in points]
         return Response({"geometry": geometry, "source": "fallback"})
+
+
+class GPXClassifyView(APIView):
+    """
+    POST /api/routes/gpx-classify/
+    Body: { "points": [{lat, lng}, ...] }
+
+    GPX route-ийн consecutive 2 цэг хооронд тус бүр хамгийн ойрын
+    хэрэглэгчийн / OSM-ийн Segment-ийг олж infra_level + condition-ийг
+    өвлүүлнэ. Дараа нь дараалсан "ижил classification"-той edge-уудыг
+    нэг section болгон бүлэглэж жагсаалт буцаана.
+
+    Хариу:
+        {
+          "sections": [
+            { "from_idx": 0, "to_idx": 12,
+              "infra_level": 1, "condition": "green",
+              "matched": true, "distance_m": 482 },
+            ...
+          ],
+          "matched_count": 23,
+          "unmatched_count": 7
+        }
+    Хэрэглэгч "Зөв" дарвал section-уудыг шууд хадгална. "Засах" дарж
+    хүссэн хэсгийг өөрчлөх боломжтой.
+    """
+    permission_classes = [IsCyclistOrAbove]
+
+    def post(self, request):
+        points = request.data.get("points", [])
+        if len(points) < 2:
+            return Response({"error": "At least 2 points required"}, status=400)
+
+        # ─ bbox + nearby segments
+        try:
+            lats = [float(p["lat"]) for p in points]
+            lngs = [float(p["lng"]) for p in points]
+        except (KeyError, TypeError, ValueError):
+            return Response({"error": "Invalid point format"}, status=400)
+
+        nearby_segs = list(Segment.objects.filter(
+            Q(start_lat__range=(min(lats) - 0.005, max(lats) + 0.005),
+              start_lng__range=(min(lngs) - 0.005, max(lngs) + 0.005)) |
+            Q(end_lat__range=(min(lats) - 0.005, max(lats) + 0.005),
+              end_lng__range=(min(lngs) - 0.005, max(lngs) + 0.005))
+        ).only("start_lat", "start_lng", "end_lat", "end_lng",
+               "geometry", "infra_level", "condition")[:5000])
+
+        seg_points = []
+        for s in nearby_segs:
+            for plat, plng in _segment_match_points(s):
+                seg_points.append((plat, plng, s.infra_level, s.condition))
+
+        # ─ Classify each edge
+        classifications = []   # [(infra_level, condition) | None for edge i]
+        for i in range(len(points) - 1):
+            mid_lat = (lats[i] + lats[i + 1]) / 2
+            mid_lng = (lngs[i] + lngs[i + 1]) / 2
+            best, best_d = None, 0.0008
+            for plat, plng, lvl, cnd in seg_points:
+                d = abs(plat - mid_lat) + abs(plng - mid_lng)
+                if d < best_d:
+                    best_d = d
+                    best = (lvl, cnd)
+            classifications.append(best)
+
+        # ─ Group consecutive edges with same (level, condition) into sections
+        sections = []
+        if classifications:
+            cur_start = 0
+            cur_class = classifications[0]
+            for i in range(1, len(classifications)):
+                if classifications[i] != cur_class:
+                    sections.append(self._make_section(
+                        points, cur_start, i, cur_class))
+                    cur_start = i
+                    cur_class = classifications[i]
+            sections.append(self._make_section(
+                points, cur_start, len(classifications), cur_class))
+
+        matched_count   = sum(1 for c in classifications if c is not None)
+        unmatched_count = len(classifications) - matched_count
+
+        return Response({
+            "sections":        sections,
+            "matched_count":   matched_count,
+            "unmatched_count": unmatched_count,
+            "edges_total":     len(classifications),
+        })
+
+    def _make_section(self, points, from_idx, to_idx, klass):
+        """Helper — section dict with distance computed."""
+        # to_idx is exclusive index into 'classifications', i.e. node index
+        # of the END of the section. Distance: sum of edges in [from_idx, to_idx)
+        d = 0
+        for j in range(from_idx, to_idx):
+            if j < len(points) - 1:
+                d += _haversine_m(
+                    float(points[j]["lat"]),     float(points[j]["lng"]),
+                    float(points[j + 1]["lat"]), float(points[j + 1]["lng"]),
+                )
+        if klass:
+            lvl, cnd = klass
+            return {
+                "from_idx":    from_idx,
+                "to_idx":      to_idx,
+                "infra_level": lvl,
+                "condition":   cnd,
+                "matched":     True,
+                "distance_m":  round(d, 1),
+            }
+        else:
+            return {
+                "from_idx":    from_idx,
+                "to_idx":      to_idx,
+                "infra_level": 4,        # default
+                "condition":   "yellow",  # default
+                "matched":     False,
+                "distance_m":  round(d, 1),
+            }
 
 
 class UpdateProfileDistanceView(APIView):

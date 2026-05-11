@@ -613,8 +613,13 @@ textarea.form-control { resize: none; }
 .bm-map-action i {
   font-size: 1rem;
 }
-.bm-map-action.is-poi i { color: var(--bm-yellow); }
+.bm-map-action.is-poi   i { color: var(--bm-yellow); }
 .bm-map-action.is-route i { color: var(--bm-green); }
+.bm-map-action.is-edit  i { color: #a78bfa; }
+.bm-map-action.is-edit.active { background: rgba(167,139,250,.15); border-color: rgba(167,139,250,.5); }
+
+/* Road edit prompt text fix */
+#roadEditPrompt span { display: inline; }
 
 /* ─── Smart Route bar (centered, drops down from top) ─── */
 .bm-route-bar {
@@ -745,4 +750,30 @@ textarea.form-control { resize: none; }
    fallback. Switch the glow to yellow so the visual cue matches. */
 .leaflet-container.bm-route-fallback .bm-route-line-pane {
   filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.55));
+}
+
+/* ─── Route legend (floating panel beside the route bar) ─── */
+.bm-route-legend {
+  position: absolute;
+  top: 80px;
+  right: 14px;
+  width: 250px;
+  max-width: calc(100vw - 28px);
+  z-index: 902;
+  background: var(--bm-darker) !important;
+  color: var(--bm-text);
+  font-size: .8rem;
+  display: none;
+}
+.bm-route-legend hr { margin: .35rem 0; }
+@media (max-width: 991.98px) {
+  .bm-route-legend {
+    top: auto;
+    bottom: 14px;
+    right: 14px;
+    left: 14px;
+    width: auto;
+    max-height: 45vh;
+    overflow-y: auto;
+  }
 }

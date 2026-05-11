@@ -208,11 +208,9 @@
         <button class="btn btn-outline-secondary btn-sm" onclick="switchTab('segment')">
           <i class="bi bi-pen-fill me-1"></i>Сегмент тэмдэглэх
         </button>
-        <label for="gpxFile" id="gpxFileLabel" class="btn btn-outline-info btn-sm" style="cursor:pointer">
-          <i class="bi bi-upload me-1"></i>GPX файл сонгох
-        </label>
-        <input type="file" id="gpxFile" accept=".gpx" class="d-none"
-               onchange="switchTab('route'); GPXImport.load(this);">
+        <a href="/gpx-import/" class="btn btn-outline-info btn-sm">
+          <i class="bi bi-upload me-1"></i>GPX файл оруулах
+        </a>
         <button class="btn btn-outline-primary btn-sm d-none" id="btnGPXExport" onclick="GPS.exportGPX()">
           <i class="bi bi-download me-1"></i>GPX татах
         </button>
@@ -400,6 +398,7 @@
 <script src="{% static 'js/poi.js' %}"></script>
 <script src="{% static 'js/smart_route.js' %}"></script>
 <script src="{% static 'js/gpx_import.js' %}"></script>
+<script src="{% static 'js/segment_road_edit.js' %}"></script>
 <script src="{% static 'js/map.js' %}"></script>
 <script>
 // Nudge leaflet to recalc its container size after layout settles.

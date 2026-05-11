@@ -86,11 +86,13 @@ const AuthState = {
     const unEl    = document.getElementById('navUsername');
     const adminNav = document.getElementById('navAdmin');
     const profNav  = document.getElementById('navProfile');
+    const gpxNav   = document.getElementById('navGpxImport');
     if (user) {
       if (guest)   guest.style.display   = 'none';
       if (userEl)  userEl.style.display  = 'flex';
       if (unEl)    unEl.textContent      = `@${user.username}`;
       if (profNav) profNav.style.display = 'block';
+      if (gpxNav)  gpxNav.style.display  = 'block';
       if (adminNav && ['admin', 'moderator'].includes(user.role))
         adminNav.style.display = 'block';
     } else {

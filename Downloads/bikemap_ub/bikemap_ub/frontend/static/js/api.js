@@ -42,6 +42,8 @@ const API = {
   // Segments
   getSegments:     (params = {}) => API.get('/segments/?' + new URLSearchParams(params)),
   createSegment:   d => API.post('/segments/', d),
+  updateSegment:   (id, d) => API.patch(`/segments/${id}/`, d),
+  deleteSegment:   id => API.delete(`/segments/${id}/`),
   bulkImportSegs:  segs => API.post('/segments/bulk-import/', { segments: segs }),
 
   // POIs

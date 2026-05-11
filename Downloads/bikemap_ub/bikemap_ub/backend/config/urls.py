@@ -20,6 +20,7 @@ urlpatterns = [
     # ── Frontend pages ───────────────────────────────────────────────────────
     path('', TemplateView.as_view(template_name='map/index.html'), name='home'),
     path('map/', TemplateView.as_view(template_name='map/index.html'), name='map'),
+    path('gpx-import/', TemplateView.as_view(template_name='map/gpx_import.html'), name='gpx-import-page'),
     path('heatmap/', TemplateView.as_view(template_name='map/heatmap.html'), name='heatmap'),
     path('stats/',     TemplateView.as_view(template_name='stats/index.html'), name='stats'),
     path('dashboard/', TemplateView.as_view(template_name='dashboard/index.html'), name='dashboard'),
