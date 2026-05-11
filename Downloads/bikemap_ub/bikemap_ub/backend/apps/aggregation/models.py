@@ -45,7 +45,9 @@ class CrowdAggregation(models.Model):
     def compute_dominant(self):
         """
         US-031 algorithm: most votes wins.
+        Tie-breaker: safety-first — red > yellow > green.
         Example: green=10, yellow=3, red=6 → green
+        Example: green=5,  yellow=5, red=0  → yellow (safer than green tie)
         """
         votes = {
             "green":  self.green_votes,
@@ -56,5 +58,10 @@ class CrowdAggregation(models.Model):
         if total == 0:
             self.dominant = "none"
         else:
-            self.dominant = max(votes, key=votes.get)
+            max_votes = max(votes.values())
+            # Safety-first tie-break: among tied conditions pick the most cautious
+            for condition in ("red", "yellow", "green"):
+                if votes[condition] == max_votes:
+                    self.dominant = condition
+                    break
         return self.dominant

@@ -1,0 +1,63 @@
+name: BikeMap UB CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: bikemap_db
+          POSTGRES_USER: bikemap
+          POSTGRES_PASSWORD: bikemap_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://bikemap:bikemap_pass@localhost:5432/bikemap_db
+      SECRET_KEY: ci-test-secret-key-not-for-production
+      DEBUG: "True"
+      DJANGO_SETTINGS_MODULE: config.settings
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: Downloads/bikemap_ub/bikemap_ub/backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: Downloads/bikemap_ub/bikemap_ub/backend
+        run: pip install -r requirements.txt coverage
+
+      - name: Run migrations
+        working-directory: Downloads/bikemap_ub/bikemap_ub/backend
+        run: python manage.py migrate --noinput
+
+      - name: Run tests with coverage
+        working-directory: Downloads/bikemap_ub/bikemap_ub/backend
+        run: |
+          coverage run manage.py test --verbosity=2
+          coverage report --omit="venv/*,*/migrations/*,*/tests*"
+          coverage xml --omit="venv/*,*/migrations/*,*/tests*"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: Downloads/bikemap_ub/bikemap_ub/backend/coverage.xml
