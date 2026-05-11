@@ -741,6 +741,11 @@ Cmd+Shift+R
 # segment harah
 python manage.py segment_stats
 
+Coverage measurement: coverage run manage.py test → нийт 61% (1,143 мөрийн 693 нь 
+тестэд хамрагдсан). apps/routes/views.py-д OSRM-тай шууд холбоотой хэсэг (19%) 
+live server шаарддаг тул тест хийгдээгүй.
+
+
 ---
 
 *Оюутан: Э.Батсайхан (B222270809) | Дипломын ажил | 2026*
