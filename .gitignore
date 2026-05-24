@@ -45,3 +45,8 @@ npm-debug.log*
 # Jupyter
 .ipynb_checkpoints/
 Figures/
+
+venv/
+__pycache__/
+*.pyc
+db.sqlite3
