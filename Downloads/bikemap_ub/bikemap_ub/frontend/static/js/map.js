@@ -124,16 +124,18 @@ function renderSegmentList(q='') {
           ${s.user?.username||'—'} · ${new Date(s.created_at).toLocaleDateString()}
         </div>
         ${canEdit ? `
-        <div class="d-flex gap-1 mt-2">
-          <button class="btn btn-outline-warning btn-sm py-0 px-2"
-                  style="font-size:.7rem"
-                  onclick="event.stopPropagation(); SegmentEdit.open(${s.id})">
-            <i class="bi bi-pencil"></i> Засах
+        <div class="d-flex gap-2 mt-2">
+          <button class="btn btn-outline-warning flex-fill"
+                  style="font-size:.78rem;padding:.45rem;min-height:38px;touch-action:manipulation"
+                  onclick="event.stopPropagation(); SegmentEdit.open(${s.id})"
+                  ontouchstart="event.stopPropagation()">
+            <i class="bi bi-pencil me-1"></i>Засах
           </button>
-          <button class="btn btn-outline-danger btn-sm py-0 px-2"
-                  style="font-size:.7rem"
-                  onclick="event.stopPropagation(); SegmentEdit.remove(${s.id})">
-            <i class="bi bi-trash"></i> Устгах
+          <button class="btn btn-outline-danger flex-fill"
+                  style="font-size:.78rem;padding:.45rem;min-height:38px;touch-action:manipulation"
+                  onclick="event.stopPropagation(); SegmentEdit.remove(${s.id})"
+                  ontouchstart="event.stopPropagation()">
+            <i class="bi bi-trash me-1"></i>Устгах
           </button>
         </div>` : ''}
       </div>
@@ -157,13 +159,14 @@ const SegmentEdit = {
       document.body.appendChild(modal);
     }
     modal.innerHTML = `
-      <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content bg-dark text-light border border-secondary">
           <div class="modal-header border-secondary">
             <h6 class="modal-title">
               <i class="bi bi-pencil-square me-1"></i>Сегмент засварлах
             </h6>
-            <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <button type="button" class="btn-close btn-close-white"
+                    data-bs-dismiss="modal" style="min-width:44px;min-height:44px"></button>
           </div>
           <div class="modal-body">
             <div class="mb-3">
@@ -172,7 +175,7 @@ const SegmentEdit = {
                 ${['green','yellow','red'].map(c => `
                   <button class="btn flex-fill ${seg.condition===c?'active':''}"
                           data-cond="${c}"
-                          style="background:${ {green:'#22c55e',yellow:'#f59e0b',red:'#ef4444'}[c] };color:#000"
+                          style="background:${ {green:'#22c55e',yellow:'#f59e0b',red:'#ef4444'}[c] };color:#000;min-height:48px;font-weight:600"
                           onclick="SegmentEdit._setCond('${c}')">
                     ${c==='green'?'🟢 Ногоон':c==='yellow'?'🟡 Шар':'🔴 Улаан'}
                   </button>`).join('')}
@@ -180,7 +183,8 @@ const SegmentEdit = {
             </div>
             <div class="mb-3">
               <label class="form-label small text-secondary">Дэд бүтцийн зэрэглэл (1..6)</label>
-              <select class="form-select bg-dark text-light border-secondary" id="segEditLevel">
+              <select class="form-select bg-dark text-light border-secondary" id="segEditLevel"
+                      style="min-height:48px;font-size:1rem">
                 <option value="1" ${seg.infra_level===1?'selected':''}>1 — Тусгаарлагдсан дугуйн зам</option>
                 <option value="2" ${seg.infra_level===2?'selected':''}>2 — Холимог ашиглалт</option>
                 <option value="3" ${seg.infra_level===3?'selected':''}>3 — Хамгаалалттай эгнээ</option>
@@ -193,8 +197,10 @@ const SegmentEdit = {
             <input type="hidden" id="segEditCond" value="${seg.condition}">
           </div>
           <div class="modal-footer border-secondary">
-            <button class="btn btn-secondary" data-bs-dismiss="modal">Цуцлах</button>
-            <button class="btn btn-success" onclick="SegmentEdit._save()">
+            <button class="btn btn-secondary flex-fill"
+                    style="min-height:48px" data-bs-dismiss="modal">Цуцлах</button>
+            <button class="btn btn-success flex-fill"
+                    style="min-height:48px" onclick="SegmentEdit._save()">
               <i class="bi bi-check-lg me-1"></i>Хадгалах
             </button>
           </div>
@@ -224,13 +230,56 @@ const SegmentEdit = {
     }
   },
 
-  async remove(id) {
-    if (!confirm('Энэ сегментийг устгах уу?')) return;
+  remove(id) {
+    // Гар утсанд найдвартай ажиллах custom confirm modal
+    let modal = document.getElementById('segDelModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'segDelModal';
+      modal.className = 'modal fade';
+      modal.setAttribute('tabindex', '-1');
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+      <div class="modal-dialog modal-dialog-centered modal-dialog-bottom-sm">
+        <div class="modal-content bg-dark text-light border border-secondary">
+          <div class="modal-header border-secondary">
+            <h6 class="modal-title">
+              <i class="bi bi-exclamation-triangle text-danger me-1"></i>Сегментийг устгах уу?
+            </h6>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-0 text-secondary small">
+              Энэ үйлдлийг буцаах боломжгүй. Сегмент устгагдсаны дараа
+              Crowd Aggregation автомат шинэчлэгдэнэ.
+            </p>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button class="btn btn-outline-secondary flex-fill"
+                    style="min-height:44px"
+                    data-bs-dismiss="modal">Цуцлах</button>
+            <button class="btn btn-danger flex-fill"
+                    style="min-height:44px"
+                    onclick="SegmentEdit._confirmDelete(${id})">
+              <i class="bi bi-trash me-1"></i>Устгах
+            </button>
+          </div>
+        </div>
+      </div>`;
+    new bootstrap.Modal(modal).show();
+  },
+
+  async _confirmDelete(id) {
+    const modalEl = document.getElementById('segDelModal');
+    const inst = bootstrap.Modal.getInstance(modalEl);
     try {
       await API.deleteSegment(id);
+      inst?.hide();
       showToast('success', 'Сегмент устгагдлаа');
       loadSegments();
     } catch (e) {
+      inst?.hide();
       showToast('danger', e.message);
     }
   },
@@ -250,9 +299,60 @@ async function loadSegments() {
   }
 }
 
+// ── Mobile bottom-sheet drag controller ─────────────────────────────
+//   Sheet 3 төлөвт орно: peek (anhdagch), is-half, is-full.
+//   Хэрэглэгч drag handle-аас доош/дээш чирэх эсвэл tap хийхэд шилждэг.
+function initMobileSheet() {
+  if (window.innerWidth > 991) return;  // зөвхөн mobile
+  const sheet = document.querySelector('.bm-sidebar');
+  if (!sheet) return;
+  const head = sheet.querySelector('.bm-sidebar-head');
+  let startY = 0, currentState = 'peek';
+
+  function setState(s) {
+    sheet.classList.remove('is-half', 'is-full');
+    if (s === 'half') sheet.classList.add('is-half');
+    if (s === 'full') sheet.classList.add('is-full');
+    currentState = s;
+  }
+
+  function cycle() {
+    if (currentState === 'peek') setState('half');
+    else if (currentState === 'half') setState('full');
+    else setState('peek');
+  }
+
+  // Tap дараа гүйцээнэ
+  head?.addEventListener('click', e => {
+    if (e.target.closest('button, input, select, a')) return;
+    cycle();
+  });
+
+  // Touch drag
+  let dragging = false;
+  head?.addEventListener('touchstart', e => {
+    dragging = true; startY = e.touches[0].clientY;
+  }, { passive: true });
+  head?.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const dy = e.touches[0].clientY - startY;
+    if (Math.abs(dy) < 30) return;
+    if (dy < 0) {  // дээш — нэг шат нэмэх
+      if (currentState === 'peek') setState('half');
+      else if (currentState === 'half') setState('full');
+    } else {  // доош — нэг шат буурах
+      if (currentState === 'full') setState('half');
+      else if (currentState === 'half') setState('peek');
+    }
+    dragging = false;
+  }, { passive: true });
+  head?.addEventListener('touchend', () => { dragging = false; });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const mapEl = document.getElementById('map');
   if (!mapEl) return;
+  initMobileSheet();
   
   map = L.map('map').setView([47.9167, 106.9167], 13);
 

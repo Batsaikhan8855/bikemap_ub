@@ -714,6 +714,9 @@ docker run -d --name bikemap-db \
   -e POSTGRES_USER=bikemap \
   -e POSTGRES_PASSWORD=bikemap_pass \
   -p 5432:5432 postgres:15-alpine
+
+  docker start bikemap-db
+
 # .env → DATABASE_URL=postgres://bikemap:bikemap_pass@localhost:5432/bikemap_db
 python manage.py migrate
 
@@ -744,6 +747,9 @@ python manage.py segment_stats
 Coverage measurement: coverage run manage.py test → нийт 61% (1,143 мөрийн 693 нь 
 тестэд хамрагдсан). apps/routes/views.py-д OSRM-тай шууд холбоотой хэсэг (19%) 
 live server шаарддаг тул тест хийгдээгүй.
+
+file:///Users/macbookpro/bikemap_ub/Downloads/bikemap_ub/bikemap_ub/backend/htmlcov/index.html
+
 
 
 ---

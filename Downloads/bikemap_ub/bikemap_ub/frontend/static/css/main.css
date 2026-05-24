@@ -662,49 +662,149 @@ textarea.form-control { resize: none; }
   border-color: var(--bm-border2);
 }
 
-/* ─── Mobile fallback (< 992px) ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE — Segment edit/delete modal & touch targets
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Confirmation/edit modal-ыг гар утсанд илүү тохиромжтой болгох */
+@media (max-width: 575.98px) {
+  /* Modal full-screen-аар нээгдсэн ч padding нь дотроо багатай байх */
+  .modal-fullscreen-sm-down .modal-body {
+    padding: 1rem;
+  }
+  .modal-fullscreen-sm-down .modal-footer {
+    padding: .75rem 1rem;
+    gap: .5rem;
+  }
+  /* delete modal-н dialog нь дунд биш доороос гарах байдалтай */
+  .modal-dialog-bottom-sm {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    margin: 0;
+    max-width: 100%;
+  }
+  .modal-dialog-bottom-sm .modal-content {
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+  }
+}
+
+/* Жижиг сегмент карт дотор Засах/Устгах товчны зай авах */
+.bm-segment-card .btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE LAYOUT — Bottom sheet style (Strava / Google Maps хандлагаар)
+   Гар утсанд: map нь full-screen, sidebar нь доороос дээш гарч ирдэг
+   bottom-sheet (drag handle-тай). 3 хэмжээтэй: collapsed (peek), half, full.
+   ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 991.98px) {
   .bm-app {
+    position: relative;
     flex-direction: column;
     height: calc(100vh - 56px);
   }
-  .bm-sidebar {
-    flex: 0 0 auto;
-    width: 100%;
-    max-height: 45vh;
-    border-right: none;
-    border-bottom: 1px solid var(--bm-border);
-  }
+  /* Map нь background-аар full screen */
   .bm-map-pane {
-    flex: 1 1 auto;
-    min-height: 240px;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    min-height: unset;
   }
-  /* Action chips become smaller; below route bar */
+  /* Sidebar = доороос гарах bottom sheet */
+  .bm-sidebar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 1000;
+    width: 100%;
+    height: auto;
+    max-height: 88vh;
+    border-right: none;
+    border-top: 1px solid var(--bm-border);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 30px rgba(0,0,0,.45);
+    transform: translateY(calc(100% - 72px));   /* peek state */
+    transition: transform .3s cubic-bezier(.4, 0, .2, 1);
+    overflow: hidden;
+  }
+  .bm-sidebar.is-half {
+    transform: translateY(50%);
+  }
+  .bm-sidebar.is-full {
+    transform: translateY(0);
+  }
+  /* Drag handle — sheet-н дээд талд */
+  .bm-sidebar::before {
+    content: '';
+    position: absolute;
+    top: 8px; left: 50%;
+    transform: translateX(-50%);
+    width: 42px; height: 5px;
+    border-radius: 3px;
+    background: #4b5563;
+    z-index: 5;
+  }
+  .bm-sidebar-head {
+    padding-top: 22px;
+    cursor: grab;
+    user-select: none;
+  }
+  .bm-sidebar-body, .bm-sidebar-foot {
+    max-height: calc(80vh - 80px);
+    overflow-y: auto;
+  }
+
+  /* Action chip-уудыг доороос дээш ойлгомжтой байрлуулна */
   .bm-map-actions {
     top: 8px;
     right: 8px;
     gap: .35rem;
   }
   .bm-map-action {
-    padding: .42rem .65rem;
-    font-size: .75rem;
+    padding: .55rem .75rem;
+    font-size: .8rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.4);
   }
   .bm-route-bar {
     top: 56px;
     width: calc(100% - 16px);
+    left: 8px; right: 8px;
+  }
+  /* Тоног төхөөрөмж — top-аас гадуур ил гарахгүй болгож зөөж тавина */
+  .bm-stat-mini {
+    padding: 8px 6px;
+  }
+  /* Footer-н кнопкуудыг 2 баганаар */
+  .bm-foot-actions {
+    flex-wrap: wrap;
+  }
+  .bm-foot-actions > * {
+    flex: 1 0 calc(50% - .25rem);
+    min-width: 0;
   }
 }
 
 @media (max-width: 575.98px) {
+  /* Зөвхөн icon үлдээх */
   .bm-map-action span {
-    /* Show only icons on very small screens */
     display: none;
   }
   .bm-map-action {
-    padding: .5rem .55rem;
+    padding: .55rem .6rem;
   }
   .bm-map-action i {
-    font-size: 1.05rem;
+    font-size: 1.1rem;
+  }
+  /* Sheet-н хэмжээг утсанд тохируулна */
+  .bm-sidebar {
+    border-radius: 16px 16px 0 0;
+  }
+  /* Том тоог жижигрүүлэх */
+  .bm-stat-mini > div:first-child {
+    font-size: .95rem;
   }
 }
 
