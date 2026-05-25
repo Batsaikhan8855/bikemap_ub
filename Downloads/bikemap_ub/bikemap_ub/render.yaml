@@ -2,7 +2,7 @@ services:
   - type: web
     name: bikemap-ub
     env: python
-    buildCommand: "cd backend && pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    buildCommand: "cd backend && pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py createsuperuser --noinput || true"
     startCommand: "cd backend && gunicorn config.wsgi:application"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
